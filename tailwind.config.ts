@@ -13,8 +13,8 @@ const config: Config = {
     },
     extend: {
       colors: {
-        // Palette dark riche, pas le générique violet
-        // Inspirée d'un IDE/terminal mais plus chaleureuse
+        // Palette dark riche, inspirée Google Analytics dark mode.
+        // Sprint C : moins de saturation, plus de hiérarchie typographique.
         ink: {
           950: '#0a0e14',
           900: '#0f1419',
@@ -27,15 +27,23 @@ const config: Config = {
           200: '#c5cdd6',
           100: '#e6ecf2',
         },
-        accent: {
-          // Vert plutôt que violet, plus terminal-y, moins startup-AI
-          DEFAULT: '#5cdb95',
-          dark: '#3aa370',
-          light: '#7ee8b3',
+        // Tokens sémantiques pour la donnée (Sprint C).
+        // À utiliser POUR LES VALEURS uniquement, pas pour l'UI générale.
+        data: {
+          positive: '#34a853',  // Google green — gain, solde positif, statut ok
+          negative: '#ea4335',  // Google red — perte, dépassement, alerte
+          neutral:  '#e6ecf2',  // = ink-100, valeur sans charge sémantique
+          muted:    '#8b95a3',  // = ink-300, valeur secondaire
         },
-        warn: '#ffb84d',
+        // Accent UI (boutons, liens, focus). Utilisation parcimonieuse.
+        accent: {
+          DEFAULT: '#5cdb95',
+          dark:    '#3aa370',
+          light:   '#7ee8b3',
+        },
+        warn:   '#ffb84d',
         danger: '#ff6b6b',
-        info: '#5fb3f4',
+        info:   '#5fb3f4',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],

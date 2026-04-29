@@ -14,9 +14,7 @@
 
   body {
     @apply min-h-screen antialiased;
-    background-image:
-      radial-gradient(at 0% 0%, rgba(92, 219, 149, 0.04) 0px, transparent 50%),
-      radial-gradient(at 100% 100%, rgba(95, 179, 244, 0.03) 0px, transparent 50%);
+    /* Sprint C : fond plat Google Analytics, retrait des gradients designer. */
   }
 
   /* Scrollbar discret */
@@ -66,5 +64,41 @@
     content: '';
     @apply inline-block w-1.5 h-1.5 rounded-full bg-accent mr-1.5;
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* ── Data semantics (Sprint C) ── */
+  /* Utilitaires pour les valeurs numériques.
+     `metric` = chiffre principal d'un widget, taille + poids forts.
+     `metric-label` = libellé sous/sur le chiffre.
+     `metric-delta` = variation (+/- vs période précédente).
+     Couleur appliquée selon le signe via `data-positive` / `data-negative`. */
+  .metric {
+    @apply text-2xl font-semibold tracking-tight tabular-nums text-ink-100;
+  }
+  .metric-lg {
+    @apply text-3xl font-semibold tracking-tight tabular-nums text-ink-100;
+  }
+  .metric-label {
+    @apply text-[10px] font-medium uppercase tracking-wider text-ink-400;
+  }
+  .metric-delta {
+    @apply text-[11px] font-mono tabular-nums;
+  }
+  .data-positive { @apply text-data-positive; }
+  .data-negative { @apply text-data-negative; }
+  .data-neutral  { @apply text-data-neutral; }
+  .data-muted    { @apply text-data-muted; }
+
+  /* Card style Google Analytics — bordure très subtile, pas d'ombre. */
+  .ga-card {
+    @apply bg-ink-900 border border-ink-800/60 rounded-lg;
+  }
+  .ga-card-hover {
+    @apply transition-colors hover:border-ink-700;
+  }
+
+  /* Section header style Google Analytics — petit, espacé, en majuscules. */
+  .section-title {
+    @apply text-[11px] font-semibold tracking-wider uppercase text-ink-400;
   }
 }
