@@ -13,8 +13,7 @@
  * Next.js pourrait figer la date au build, causant un mismatch d'hydratation.
  */
 
-export const dynamic = 'force-dynamic'
-
+import Link from 'next/link'
 import { Sidebar } from '@/components/sidebar'
 import { AiSearchCard } from '@/components/ai-search-card'
 import { LiveStatCards } from '@/components/live-stat-cards'
@@ -32,6 +31,8 @@ import {
   LayoutGrid,
   Activity,
 } from 'lucide-react'
+
+export const dynamic = 'force-dynamic'
 
 export default function DashboardPage() {
   const now = new Date()
@@ -61,13 +62,13 @@ export default function DashboardPage() {
               </span>
             </p>
           </div>
-          <a
+          <Link
             href="/search"
             className="px-3 py-1.5 text-xs font-mono bg-ink-800 border border-ink-700 rounded-md hover:border-ink-600 hover:text-ink-100 transition-colors text-ink-400 hidden md:flex items-center gap-1.5"
           >
             <Brain size={11} />
             ⌘K · rechercher
-          </a>
+          </Link>
         </header>
 
         {/* ── Recherche IA ── full width ── */}
@@ -93,19 +94,19 @@ export default function DashboardPage() {
               focusContent={
                 <div className="text-sm text-ink-400 p-4">
                   <p>Mode focus finances complet — disponible dès que tu cliques sur{' '}
-                    <a href="/finances" className="text-accent hover:underline">
+                    <Link href="/finances" className="text-accent hover:underline">
                       /finances →
-                    </a>
+                    </Link>
                   </p>
                 </div>
               }
               headerActions={
-                <a
+                <Link
                   href="/finances"
                   className="text-[10px] font-mono text-accent/70 hover:text-accent transition-colors shrink-0 hidden sm:block"
                 >
                   tout voir →
-                </a>
+                </Link>
               }
             >
               <LiveStatCards />
@@ -131,12 +132,12 @@ export default function DashboardPage() {
           icon={BarChart2}
           defaultSize="full"
           headerActions={
-            <a
+            <Link
               href="/finances"
               className="text-[10px] font-mono text-accent/70 hover:text-accent transition-colors shrink-0 hidden sm:block"
             >
               détails →
-            </a>
+            </Link>
           }
         >
           <SpendingChart />
@@ -151,12 +152,12 @@ export default function DashboardPage() {
             icon={MapPin}
             defaultSize="md"
             headerActions={
-              <a
+              <Link
                 href="/locations"
                 className="text-[10px] font-mono text-accent/70 hover:text-accent transition-colors shrink-0 hidden sm:block"
               >
                 carte →
-              </a>
+              </Link>
             }
           >
             <div className="flex flex-col items-center justify-center py-8 gap-2 text-center">
@@ -167,12 +168,12 @@ export default function DashboardPage() {
               <p className="text-[11px] text-ink-600 font-mono">
                 takeout.google.com → Localisation → Records.json
               </p>
-              <a
+              <Link
                 href="/locations"
                 className="mt-2 text-xs text-accent hover:text-accent-light transition-colors font-mono"
               >
                 voir la carte →
-              </a>
+              </Link>
             </div>
           </Widget>
 

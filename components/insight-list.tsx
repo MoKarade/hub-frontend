@@ -15,7 +15,7 @@ export function InsightList() {
       <Sparkles size={20} className="text-ink-600" />
       <p className="text-sm text-ink-300">Aucun insight encore</p>
       <p className="text-xs text-ink-500 max-w-[260px]">
-        L'endpoint <code className="font-mono">/v1/insights</code> sera ajouté
+        L&apos;endpoint <code className="font-mono">/v1/insights</code> sera ajouté
         en Phase 4+ (anomalies, abonnements doublons, patterns).
       </p>
     </div>
