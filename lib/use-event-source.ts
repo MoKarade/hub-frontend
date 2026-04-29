@@ -22,7 +22,6 @@ export type HubEventType = 'connected' | 'new_transaction' | 'new_location' | 's
 
 export interface HubEvent {
   type: HubEventType | string
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: Record<string, any>
   receivedAt: number  // Date.now() — pour réinitialiser le pulse après X ms
 }

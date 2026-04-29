@@ -55,7 +55,6 @@ const SIZE_COL: Record<WidgetSize, string> = {
 
 interface SortableItemProps {
   id: string
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   children: React.ReactElement<any>
 }
 
@@ -136,7 +135,6 @@ export function WidgetGrid({ ids, children }: WidgetGridProps) {
   }
 
   // Convertit les children JSX en tableau indexé, puis mappe id → ReactElement
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const childArray = React.Children.toArray(children) as React.ReactElement<any>[]
   const widgetMap = new Map(ids.map((id, i) => [id, childArray[i]]))
 

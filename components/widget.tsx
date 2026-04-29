@@ -80,12 +80,9 @@ export interface WidgetProps {
    * Listeners dnd-kit (onPointerDown, etc.) injectés par SortableItem.
    * Sprint B : câblés sur le drag handle GripVertical.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  /** Listeners dnd-kit (onPointerDown, etc.) injectés par SortableItem (Sprint B). */
   dragListeners?: Record<string, any>
-  /**
-   * Attributs ARIA dnd-kit injectés par SortableItem.
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  /** Attributs ARIA dnd-kit injectés par SortableItem (Sprint B). */
   dragAttributes?: Record<string, any>
 }
 
