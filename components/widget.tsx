@@ -76,6 +76,17 @@ export interface WidgetProps {
    * Sprint B : passé depuis le hook useEventSource.
    */
   pulse?: boolean
+  /**
+   * Listeners dnd-kit (onPointerDown, etc.) injectés par SortableItem.
+   * Sprint B : câblés sur le drag handle GripVertical.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  dragListeners?: Record<string, any>
+  /**
+   * Attributs ARIA dnd-kit injectés par SortableItem.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  dragAttributes?: Record<string, any>
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -94,6 +105,8 @@ export function Widget({
   noPadding = false,
   className,
   pulse = false,
+  dragListeners,
+  dragAttributes,
 }: WidgetProps) {
   const { getWidget, setSize, togglePin } = useLayout()
   const config = getWidget(id, { size: defaultSize, pinned: defaultPinned })
@@ -126,12 +139,18 @@ export function Widget({
         {/* ── Header ── */}
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-ink-800/70 shrink-0">
 
-          {/* Drag handle — visuel Sprint A, câblé Sprint B */}
-          <GripVertical
-            size={13}
-            className="text-ink-700 group-hover:text-ink-500 cursor-grab active:cursor-grabbing transition-colors shrink-0 select-none"
-            aria-hidden="true"
-          />
+          {/* Drag handle — câblé dnd-kit Sprint B */}
+          <span
+            {...(dragListeners ?? {})}
+            {...(dragAttributes ?? {})}
+            className="inline-flex cursor-grab active:cursor-grabbing touch-none shrink-0"
+          >
+            <GripVertical
+              size={13}
+              className="text-ink-700 group-hover:text-ink-500 transition-colors select-none"
+              aria-hidden="true"
+            />
+          </span>
 
           {Icon && (
             <Icon size={13} className="text-accent/60 shrink-0" aria-hidden="true" />

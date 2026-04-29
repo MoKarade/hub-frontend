@@ -41,6 +41,16 @@ interface LayoutContextValue {
   setSize(id: string, size: WidgetSize): void
   togglePin(id: string): void
   toggleVisible(id: string): void
+  /**
+   * Réordonne les widgets selon la liste d'IDs fournie (après un drag-and-drop dnd-kit).
+   * Met à jour le champ `order` de chaque widget.
+   */
+  reorder(ids: string[]): void
+  /**
+   * Retourne les IDs dans l'ordre persisté (pinned en premier, puis par order).
+   * Si un ID est fourni mais pas encore en localStorage, il sera ajouté en queue.
+   */
+  getSortedIds(knownIds: string[]): string[]
   /** Remet tous les widgets à leur configuration par défaut. */
   reset(): void
 }
@@ -56,6 +66,7 @@ type Action =
   | { type: 'SET_SIZE'; id: string; size: WidgetSize }
   | { type: 'TOGGLE_PIN'; id: string }
   | { type: 'TOGGLE_VISIBLE'; id: string }
+  | { type: 'REORDER'; ids: string[] }
   | { type: 'RESET' }
 
 function makeDefault(id: string, defaults?: Partial<Omit<WidgetConfig, 'id'>>): WidgetConfig {
@@ -83,6 +94,13 @@ function reducer(state: WidgetMap, action: Action): WidgetMap {
     case 'TOGGLE_VISIBLE': {
       const existing = state[action.id] ?? makeDefault(action.id)
       return { ...state, [action.id]: { ...existing, visible: !existing.visible } }
+    }
+    case 'REORDER': {
+      const next = { ...state }
+      action.ids.forEach((id, index) => {
+        next[id] = { ...(next[id] ?? makeDefault(id)), order: index }
+      })
+      return next
     }
     case 'RESET':
       return {}
@@ -150,6 +168,20 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'TOGGLE_VISIBLE', id })
   }
 
+  function reorder(ids: string[]) {
+    dispatch({ type: 'REORDER', ids })
+  }
+
+  function getSortedIds(knownIds: string[]): string[] {
+    return [...knownIds]
+      .map((id) => widgets[id] ?? makeDefault(id))
+      .sort((a, b) => {
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+        return a.order - b.order
+      })
+      .map((c) => c.id)
+  }
+
   function reset() {
     dispatch({ type: 'RESET' })
     if (typeof window !== 'undefined') {
@@ -158,7 +190,7 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <LayoutContext.Provider value={{ getWidget, setSize, togglePin, toggleVisible, reset }}>
+    <LayoutContext.Provider value={{ getWidget, setSize, togglePin, toggleVisible, reorder, getSortedIds, reset }}>
       {children}
     </LayoutContext.Provider>
   )
