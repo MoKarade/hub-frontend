@@ -17,7 +17,20 @@ jobs:
           # Pas de cache: 'npm' — nécessite un package-lock.json qui n'existe pas encore.
           # À réactiver après le premier `npm install` local qui générera le lockfile.
       - name: Install dependencies
-        run: npm install --legacy-peer-deps
+        # Retry pour absorber les ECONNRESET transitoires de registry.npmjs.org
+        # (vu sur run #5 : tailwindcss aborted mid-fetch).
+        run: |
+          npm config set fetch-retries 5
+          npm config set fetch-retry-maxtimeout 120000
+          npm config set fetch-retry-mintimeout 20000
+          for i in 1 2 3; do
+            if npm install --legacy-peer-deps; then
+              exit 0
+            fi
+            echo "npm install failed (attempt $i/3), retrying in 10s..."
+            sleep 10
+          done
+          exit 1
       - name: Lint
         run: npm run lint
         env:
