@@ -229,8 +229,8 @@ function BankingTab({
     <>
       <SummaryRow items={[
         { label: 'Transactions', value: String(filtered.length) },
-        { label: 'Débits', value: formatCurrency(totalDebit, 'CAD'), color: 'text-danger' },
-        { label: 'Crédits', value: formatCurrency(totalCredit, 'CAD'), color: 'text-accent' },
+        { label: 'Débits', value: formatCurrency(totalDebit, 'CAD'), color: 'data-negative' },
+        { label: 'Crédits', value: formatCurrency(totalCredit, 'CAD'), color: 'data-positive' },
         { label: 'Net', value: formatCurrency(totalCredit - totalDebit, 'CAD') },
       ]} />
 
@@ -282,7 +282,7 @@ function BankingTab({
                   <td
                     className={cn(
                       'px-4 py-2 text-right font-mono tabular-nums',
-                      amount >= 0 ? 'text-accent' : 'text-danger'
+                      amount >= 0 ? 'data-positive' : 'data-negative'
                     )}
                   >
                     {amount >= 0 ? '+' : ''}
@@ -351,8 +351,8 @@ function CreditCardTab({
     <>
       <SummaryRow items={[
         { label: 'Transactions', value: String(filtered.length) },
-        { label: 'Achats', value: formatCurrency(totalAchats, 'CAD'), color: 'text-danger' },
-        { label: 'Paiements', value: formatCurrency(totalPaiements, 'CAD'), color: 'text-accent' },
+        { label: 'Achats', value: formatCurrency(totalAchats, 'CAD'), color: 'data-negative' },
+        { label: 'Paiements', value: formatCurrency(totalPaiements, 'CAD'), color: 'data-positive' },
         { label: 'Net carte', value: formatCurrency(totalAchats - totalPaiements, 'CAD') },
       ]} />
 
@@ -403,7 +403,7 @@ function CreditCardTab({
                   <td
                     className={cn(
                       'px-4 py-2 text-right font-mono tabular-nums',
-                      amount > 0 ? 'text-danger' : 'text-accent'
+                      amount > 0 ? 'data-negative' : 'data-positive'
                     )}
                   >
                     {amount > 0 ? '-' : '+'}
@@ -576,7 +576,7 @@ function InvestmentsTab({
                     <span className="text-ink-300">{t.description}</span>
                   </td>
                   <td className="px-4 py-2 text-right font-mono">{t.quantity ?? '—'}</td>
-                  <td className={cn('px-4 py-2 text-right font-mono tabular-nums', amt >= 0 ? 'text-accent' : 'text-danger')}>
+                  <td className={cn('px-4 py-2 text-right font-mono tabular-nums', amt >= 0 ? 'data-positive' : 'data-negative')}>
                     {amt !== 0 ? (amt >= 0 ? '+' : '') + formatCurrency(amt, t.currency ?? account?.currency ?? 'CAD') : '—'}
                   </td>
                 </tr>
@@ -597,11 +597,9 @@ function SummaryRow({ items }: { items: { label: string; value: string; color?: 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
       {items.map((it) => (
-        <div key={it.label} className="panel p-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-1">
-            {it.label}
-          </div>
-          <div className={cn('text-lg font-semibold tabular-nums', it.color)}>{it.value}</div>
+        <div key={it.label} className="ga-card ga-card-hover px-4 py-3">
+          <div className="metric-label mb-1.5">{it.label}</div>
+          <div className={cn('metric truncate', it.color)}>{it.value}</div>
         </div>
       ))}
     </div>
