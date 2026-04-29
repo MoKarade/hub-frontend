@@ -38,21 +38,27 @@ export function AppTile({
       </div>
 
       <div className="flex items-center gap-1 text-[11px] font-mono mt-auto">
-        <span className="text-ink-500">versions:</span>
-        {versions.map((v) => (
-          <span
-            key={v.id}
-            className={cn(
-              'px-1.5 py-0.5 rounded',
-              v.isLive
-                ? 'bg-accent/20 text-accent border border-accent/30'
-                : 'bg-ink-800 text-ink-400 border border-ink-700'
-            )}
-          >
-            {v.id}
-            {v.isLive && ' ●'}
-          </span>
-        ))}
+        {versions.length === 0 ? (
+          <span className="text-ink-500">pas encore déployée</span>
+        ) : (
+          <>
+            <span className="text-ink-500">versions:</span>
+            {versions.map((v) => (
+              <span
+                key={v.id}
+                className={cn(
+                  'px-1.5 py-0.5 rounded',
+                  v.isLive
+                    ? 'bg-accent/20 text-accent border border-accent/30'
+                    : 'bg-ink-800 text-ink-400 border border-ink-700'
+                )}
+              >
+                {v.id}
+                {v.isLive && ' ●'}
+              </span>
+            ))}
+          </>
+        )}
       </div>
     </Link>
   )

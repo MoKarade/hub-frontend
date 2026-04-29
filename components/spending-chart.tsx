@@ -1,35 +1,74 @@
 'use client'
 
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import useSWR from 'swr'
+import { useMemo } from 'react'
+import { api } from '@/lib/api'
+import { formatCurrency, formatDateShort } from '@/lib/utils'
 
-// Données démo. À remplacer par fetch sur /v1/finance/daily-spending
-const DEMO = [
-  { day: '01', amount: 45 },
-  { day: '02', amount: 78 },
-  { day: '03', amount: 32 },
-  { day: '04', amount: 124 },
-  { day: '05', amount: 56 },
-  { day: '06', amount: 89 },
-  { day: '07', amount: 42 },
-  { day: '08', amount: 167 },
-  { day: '09', amount: 73 },
-  { day: '10', amount: 38 },
-  { day: '11', amount: 95 },
-  { day: '12', amount: 51 },
-  { day: '13', amount: 134 },
-  { day: '14', amount: 47 },
-  { day: '15', amount: 82 },
-  { day: '16', amount: 60 },
-  { day: '17', amount: 198 },
-  { day: '18', amount: 44 },
-  { day: '19', amount: 76 },
-  { day: '20', amount: 53 },
-]
-
+/**
+ * Bar chart des dépenses quotidiennes (carte de crédit) sur les 30 derniers jours.
+ * Source : /v1/finance/credit-card-transactions, filtré sur amount > 0 (achats).
+ */
 export function SpendingChart() {
+  const startDate = useMemo(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 30)
+    return d.toISOString().slice(0, 10)
+  }, [])
+
+  const { data, isLoading, error } = useSWR(
+    ['/v1/finance/credit-card-transactions', 'spending-30d', startDate],
+    () =>
+      api.finance.creditCard
+        .list({ start_date: startDate, limit: 1000 })
+        .catch(() => [])
+  )
+
+  const series = useMemo(() => {
+    if (!data) return []
+    // Group by transaction_date, sum positive amounts only
+    const byDay: Record<string, number> = {}
+    for (const t of data) {
+      const amount = parseFloat(t.amount)
+      if (amount <= 0) continue
+      byDay[t.transaction_date] = (byDay[t.transaction_date] ?? 0) + amount
+    }
+    return Object.entries(byDay)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([day, amount]) => ({
+        day: formatDateShort(day),
+        amount: Math.round(amount * 100) / 100,
+      }))
+  }, [data])
+
+  if (isLoading) {
+    return (
+      <div className="h-[220px] flex items-center justify-center text-sm text-ink-400">
+        Chargement…
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="h-[220px] flex items-center justify-center text-sm text-danger">
+        Erreur · le hub-core ne répond pas
+      </div>
+    )
+  }
+
+  if (series.length === 0) {
+    return (
+      <div className="h-[220px] flex items-center justify-center text-sm text-ink-400">
+        Aucune dépense sur les 30 derniers jours.
+      </div>
+    )
+  }
+
   return (
     <ResponsiveContainer width="100%" height={220}>
-      <BarChart data={DEMO} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
+      <BarChart data={series} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
         <XAxis
           dataKey="day"
           tick={{ fill: '#5a6572', fontSize: 10 }}
@@ -49,6 +88,7 @@ export function SpendingChart() {
             fontSize: '12px',
           }}
           cursor={{ fill: '#1f2630' }}
+          formatter={(value: number) => [formatCurrency(value, 'CAD'), 'Dépenses']}
         />
         <Bar dataKey="amount" fill="#5cdb95" radius={[2, 2, 0, 0]} />
       </BarChart>

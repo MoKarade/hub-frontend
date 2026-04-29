@@ -1,18 +1,26 @@
 'use client'
 
 import { Sparkles, ArrowUp } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 const SUGGESTIONS = [
-  'Combien j\'ai dépensé en restos en mars ?',
-  'Mes abonnements doublons',
-  'Email du syndic l\'an dernier',
-  'Photos prises à la mer cette année',
+  "Combien j'ai dépensé en restos en mars ?",
+  'Mes plus grosses dépenses',
+  'Solde courant fin mars',
+  'Valeur du portefeuille',
   'Où étais-je le 12 mars ?',
 ]
 
 export function AiSearchCard() {
+  const router = useRouter()
   const [value, setValue] = useState('')
+
+  function submit(q: string) {
+    const trimmed = q.trim()
+    if (!trimmed || trimmed.length < 3) return
+    router.push(`/search?q=${encodeURIComponent(trimmed)}`)
+  }
 
   return (
     <div className="panel p-5 bg-gradient-to-br from-ink-900 to-ink-900/50 border-ink-700/60">
@@ -31,8 +39,7 @@ export function AiSearchCard() {
       <form
         onSubmit={(e) => {
           e.preventDefault()
-          // TODO: appel API /v1/ai/ask
-          console.log('ask:', value)
+          submit(value)
         }}
         className="relative"
       >
@@ -57,7 +64,7 @@ export function AiSearchCard() {
         {SUGGESTIONS.map((s) => (
           <button
             key={s}
-            onClick={() => setValue(s)}
+            onClick={() => submit(s)}
             className="text-[11px] px-2.5 py-1 rounded-full bg-ink-800/60 border border-ink-700 text-ink-300 hover:text-ink-100 hover:border-ink-600 transition-colors"
           >
             {s}
