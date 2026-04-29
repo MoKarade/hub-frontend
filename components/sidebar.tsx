@@ -1,5 +1,6 @@
 'use client'
 
+import type { ComponentType } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -22,7 +23,7 @@ import { cn } from '@/lib/utils'
 type NavItem = {
   label: string
   href: string
-  icon: React.ComponentType<{ size?: number; className?: string }>
+  icon: ComponentType<{ size?: number; className?: string }>
 }
 
 type NavSection = {

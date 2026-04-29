@@ -10,10 +10,11 @@
  * Pattern recommandé par framer-motion pour Next.js App Router.
  */
 
+import type { ReactNode } from 'react'
 import { motion } from 'framer-motion'
 import { pageTransition } from '@/lib/motion'
 
-export default function Template({ children }: { children: React.ReactNode }) {
+export default function Template({ children }: { children: ReactNode }) {
   return (
     <motion.div
       variants={pageTransition}

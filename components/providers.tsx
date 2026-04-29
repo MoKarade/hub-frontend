@@ -8,16 +8,21 @@
  * pour garder app/layout.tsx en Server Component.
  */
 
+import type { ReactNode } from 'react'
+import { AnimatePresence } from 'framer-motion'
 import { LayoutProvider } from '@/lib/layout-context'
 
 interface ProvidersProps {
-  children: React.ReactNode
+  children: ReactNode
 }
 
 export function Providers({ children }: ProvidersProps) {
   return (
     <LayoutProvider>
-      {children}
+      {/* AnimatePresence ici active les animations exit() sur toutes les pages */}
+      <AnimatePresence mode="wait">
+        {children}
+      </AnimatePresence>
     </LayoutProvider>
   )
 }

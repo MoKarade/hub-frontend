@@ -1,3 +1,4 @@
+import type { ComponentType } from 'react'
 import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -7,7 +8,7 @@ type AppTileProps = {
   description: string
   href: string
   versions: { id: string; isLive?: boolean }[]
-  icon: React.ComponentType<{ size?: number; className?: string }>
+  icon: ComponentType<{ size?: number; className?: string }>
   accentColor?: string
 }
 

@@ -14,6 +14,7 @@ import {
   useContext,
   useEffect,
   useReducer,
+  useRef,
   type ReactNode,
 } from 'react'
 
@@ -117,14 +118,19 @@ function saveToStorage(map: WidgetMap): void {
 
 export function LayoutProvider({ children }: { children: ReactNode }) {
   const [widgets, dispatch] = useReducer(reducer, {})
+  // Ref pour éviter que le save localStorage fire avant le HYDRATE.
+  // (Bug #3 : sans ça le 2ème useEffect efface le layout sauvegardé)
+  const hasHydrated = useRef(false)
 
   // Hydration depuis localStorage (après mount, évite mismatch SSR)
   useEffect(() => {
     dispatch({ type: 'HYDRATE', payload: loadFromStorage() })
+    hasHydrated.current = true
   }, [])
 
-  // Persiste à chaque changement
+  // Persiste à chaque changement — seulement APRÈS hydration
   useEffect(() => {
+    if (!hasHydrated.current) return
     saveToStorage(widgets)
   }, [widgets])
 

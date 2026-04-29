@@ -8,7 +8,12 @@
  *
  * Server Component — pas de 'use client' nécessaire.
  * Les widgets sont des Client Components importés ici, ce qui est valide en Next.js App Router.
+ *
+ * force-dynamic : la page utilise new Date() pour la salutation. Sans dynamic,
+ * Next.js pourrait figer la date au build, causant un mismatch d'hydratation.
  */
+
+export const dynamic = 'force-dynamic'
 
 import { Sidebar } from '@/components/sidebar'
 import { AiSearchCard } from '@/components/ai-search-card'

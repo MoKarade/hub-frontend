@@ -9,13 +9,13 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import useSWR from 'swr'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ComponentType } from 'react'
 import { api, type Account } from '@/lib/api'
 import { formatCurrency, formatDate, signedAmount, cn } from '@/lib/utils'
 
 type TabId = 'banking' | 'credit_card' | 'investments'
 
-const TABS: { id: TabId; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
+const TABS: { id: TabId; label: string; icon: ComponentType<{ size?: number; className?: string }> }[] = [
   { id: 'banking', label: 'Banque', icon: Wallet },
   { id: 'credit_card', label: 'Carte de crédit', icon: CreditCard },
   { id: 'investments', label: 'Investissement', icon: TrendingUp },

@@ -4,7 +4,7 @@ import { Sidebar } from '@/components/sidebar'
 import { HubStatus } from '@/components/hub-status'
 import { MapPin, Footprints, Bike, Car, Pause } from 'lucide-react'
 import dynamic from 'next/dynamic'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ComponentType } from 'react'
 import useSWR from 'swr'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -19,7 +19,7 @@ const LocationMap = dynamic(() => import('@/components/location-map'), {
   ),
 })
 
-const ACTIVITIES: { id: string; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
+const ACTIVITIES: { id: string; label: string; icon: ComponentType<{ size?: number; className?: string }> }[] = [
   { id: '', label: 'Toutes', icon: MapPin },
   { id: 'walking', label: 'Marche', icon: Footprints },
   { id: 'cycling', label: 'Vélo', icon: Bike },

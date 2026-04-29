@@ -6,7 +6,7 @@
  * Animations : backdrop fade + contenu scale-in.
  */
 
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
 import { scaleIn } from '@/lib/motion'
@@ -16,7 +16,7 @@ interface FocusModalProps {
   onClose: () => void
   title: string
   subtitle?: string
-  children: React.ReactNode
+  children: ReactNode
 }
 
 export function FocusModal({ isOpen, onClose, title, subtitle, children }: FocusModalProps) {
@@ -43,11 +43,12 @@ export function FocusModal({ isOpen, onClose, title, subtitle, children }: Focus
   }, [isOpen])
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          {/* Backdrop */}
+    <>
+      {/* Backdrop — AnimatePresence séparé pour que exit() fonctionne */}
+      <AnimatePresence>
+        {isOpen && (
           <motion.div
+            key="focus-backdrop"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -56,9 +57,14 @@ export function FocusModal({ isOpen, onClose, title, subtitle, children }: Focus
             onClick={onClose}
             aria-hidden="true"
           />
+        )}
+      </AnimatePresence>
 
-          {/* Modal */}
+      {/* Modal */}
+      <AnimatePresence>
+        {isOpen && (
           <motion.div
+            key="focus-modal"
             role="dialog"
             aria-modal="true"
             aria-label={title}
@@ -90,8 +96,8 @@ export function FocusModal({ isOpen, onClose, title, subtitle, children }: Focus
               {children}
             </div>
           </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+        )}
+      </AnimatePresence>
+    </>
   )
 }

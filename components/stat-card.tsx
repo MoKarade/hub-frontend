@@ -1,3 +1,4 @@
+import type { ComponentType } from 'react'
 import { TrendingDown, TrendingUp, Minus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -5,7 +6,7 @@ type StatCardProps = {
   label: string
   value: string
   delta?: { value: string; direction: 'up' | 'down' | 'flat'; isGood?: boolean }
-  icon?: React.ComponentType<{ size?: number; className?: string }>
+  icon?: ComponentType<{ size?: number; className?: string }>
   sparkline?: number[]
 }
 
