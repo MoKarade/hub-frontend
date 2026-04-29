@@ -45,4 +45,26 @@
   .text-mono {
     @apply font-mono;
   }
+
+  /* ── Widget system ── */
+
+  /* Skeleton loading shimmer */
+  .skeleton {
+    @apply bg-ink-800 rounded;
+    background: linear-gradient(
+      90deg,
+      theme('colors.ink.800') 25%,
+      theme('colors.ink.700') 50%,
+      theme('colors.ink.800') 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s linear infinite;
+  }
+
+  /* Badge "live" avec dot pulsant */
+  .badge-live::before {
+    content: '';
+    @apply inline-block w-1.5 h-1.5 rounded-full bg-accent mr-1.5;
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
 }

@@ -45,6 +45,9 @@ const config: Config = {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'fade-in': 'fadeIn 0.3s ease-out',
         'slide-up': 'slideUp 0.3s ease-out',
+        // Sprint A — widget interactions
+        'ring-pulse': 'ringPulse 1.5s ease-out',      // SSE event reçu (Sprint B)
+        'shimmer': 'shimmer 2s linear infinite',       // skeleton loading
       },
       keyframes: {
         fadeIn: {
@@ -55,6 +58,22 @@ const config: Config = {
           '0%': { opacity: '0', transform: 'translateY(8px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
+        // Pulse ring vert quand un widget reçoit un event SSE
+        ringPulse: {
+          '0%':   { boxShadow: '0 0 0 0 rgba(92,219,149,0.45)' },
+          '70%':  { boxShadow: '0 0 0 10px rgba(92,219,149,0)' },
+          '100%': { boxShadow: '0 0 0 0 rgba(92,219,149,0)' },
+        },
+        // Skeleton shimmer
+        shimmer: {
+          '0%':   { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '200% 0' },
+        },
+      },
+      // Tokens de spacing widget
+      spacing: {
+        'widget': '1rem',       // gap entre widgets
+        'widget-sm': '0.75rem',
       },
     },
   },
