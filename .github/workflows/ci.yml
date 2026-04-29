@@ -14,7 +14,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          # Pas de cache: 'npm' — nécessite un package-lock.json qui n'existe pas encore.
+          # À réactiver après le premier `npm install` local qui générera le lockfile.
       - name: Install dependencies
         run: npm install --legacy-peer-deps
       - name: Lint
