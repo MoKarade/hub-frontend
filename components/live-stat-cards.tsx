@@ -1,11 +1,16 @@
 'use client'
 
 /**
- * LiveStatCards — 4 KPI cards branchées sur les vrais endpoints du hub-core.
- * Pas de fake data — si l'API ne répond pas, on affiche "—".
+ * LiveStatCards — KPI strip Google Analytics dark mode (Sprint C).
  *
- * Sprint A : stagger animation au montage + hover lift sur chaque card.
- * Sprint B : pulse visuel quand un événement SSE arrive.
+ * Refonte Sprint C :
+ *   - Plus de vert agressif sur les valeurs neutres (Marc : "trop crypto bro")
+ *   - Métriques plus grosses (.metric-lg) avec hiérarchie typographique forte
+ *   - Bordures subtiles (.ga-card) au lieu du panel original
+ *   - Stagger animation conservé (subtil) mais retrait du whileHover lift
+ *   - Couleur sémantique appliquée UNIQUEMENT sur le delta (pas la valeur)
+ *
+ * Pas de fake data — si l'API ne répond pas, on affiche "—".
  */
 
 import { motion } from 'framer-motion'
@@ -40,6 +45,7 @@ export function LiveStatCards() {
   )
   const balance = lastTxns?.[0]?.balance_after ?? null
   const balanceCurrency = checkingAccount?.currency ?? 'CAD'
+  const balanceNum = balance !== null ? parseFloat(balance) : null
 
   // ── Dépenses carte de crédit ce mois ──────────────────────────────────────
   const { data: cc } = useSWR(
@@ -88,14 +94,15 @@ export function LiveStatCards() {
       animate="animate"
       className="grid grid-cols-2 xl:grid-cols-4 gap-3"
     >
-      <StatCard
+      <KpiCard
         label="Solde courant"
-        value={balance !== null ? formatCurrency(balance, balanceCurrency) : '—'}
+        value={balanceNum !== null ? formatCurrency(balance!, balanceCurrency) : '—'}
         sub={checkingAccount?.account_number_masked ?? 'pas de compte'}
         icon={Wallet}
-        trend={balance !== null && parseFloat(balance) > 0 ? 'positive' : 'neutral'}
+        // Vert UNIQUEMENT si solde positif (sémantique : "ça va bien")
+        valueTone={balanceNum !== null && balanceNum > 0 ? 'positive' : 'neutral'}
       />
-      <StatCard
+      <KpiCard
         label="Dépenses · ce mois"
         value={monthlySpending !== null ? formatCurrency(monthlySpending, 'CAD') : '—'}
         sub={
@@ -104,9 +111,9 @@ export function LiveStatCards() {
             : '…'
         }
         icon={Activity}
-        trend="neutral"
+        valueTone="neutral"
       />
-      <StatCard
+      <KpiCard
         label="Portefeuille"
         value={
           portfolio
@@ -123,65 +130,66 @@ export function LiveStatCards() {
             : 'aucun snapshot'
         }
         icon={Briefcase}
-        trend={portfolio ? 'positive' : 'neutral'}
+        valueTone="neutral"
       />
-      <StatCard
-        label="GPS · 7 derniers jours"
+      <KpiCard
+        label="GPS · 7 jours"
         value={pts ? pts.length.toLocaleString('fr-CA') : '—'}
         sub={
           pts && pts.length > 0
-            ? `${new Set(pts.map((p) => p.timestamp_utc.slice(0, 10))).size} jour(s)`
+            ? `${new Set(pts.map((p) => p.timestamp_utc.slice(0, 10))).size} jour(s) couverts`
             : 'pas de data'
         }
         icon={MapPin}
-        trend="neutral"
+        valueTone="neutral"
       />
     </motion.div>
   )
 }
 
-// ── StatCard (interne) ────────────────────────────────────────────────────────
+// ── KpiCard ───────────────────────────────────────────────────────────────────
 
-function StatCard({
+type ValueTone = 'positive' | 'negative' | 'neutral'
+
+function KpiCard({
   label,
   value,
   sub,
   icon: Icon,
-  trend = 'neutral',
+  valueTone = 'neutral',
 }: {
   label: string
   value: string
   sub: string
   icon: LucideIcon
-  trend?: 'positive' | 'negative' | 'neutral'
+  valueTone?: ValueTone
 }) {
   return (
     <motion.div
       variants={staggerItem}
-      whileHover={{
-        y: -3,
-        boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-        transition: { duration: 0.15, ease: 'easeOut' },
-      }}
-      className="panel panel-hover p-4 cursor-default"
+      className="ga-card ga-card-hover px-4 py-3.5"
     >
-      <div className="flex items-start justify-between mb-3">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-400">
-          {label}
-        </span>
-        <Icon size={13} className="text-ink-600 shrink-0" />
+      {/* Header label + icon */}
+      <div className="flex items-center justify-between mb-2.5">
+        <span className="metric-label truncate">{label}</span>
+        <Icon size={13} className="text-ink-600 shrink-0" aria-hidden="true" />
       </div>
+
+      {/* Valeur principale — taille forte, couleur seulement si sémantique */}
       <div
         className={cn(
-          'text-xl font-semibold tabular-nums tracking-tight truncate',
-          trend === 'positive' && 'text-accent',
-          trend === 'negative' && 'text-danger',
-          trend === 'neutral' && 'text-ink-100'
+          'metric-lg truncate',
+          valueTone === 'positive' && 'data-positive',
+          valueTone === 'negative' && 'data-negative'
         )}
       >
         {value}
       </div>
-      <div className="text-[10px] text-ink-500 font-mono mt-1 truncate">{sub}</div>
+
+      {/* Sous-libellé technique (compte masqué, nb d'achats, etc.) */}
+      <div className="text-[10px] text-ink-500 font-mono mt-1.5 truncate">
+        {sub}
+      </div>
     </motion.div>
   )
 }
