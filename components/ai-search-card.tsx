@@ -23,13 +23,13 @@ export function AiSearchCard() {
   }
 
   return (
-    <div className="panel p-5 bg-gradient-to-br from-ink-900 to-ink-900/50 border-ink-700/60">
+    <div className="p-1">
       <div className="flex items-center gap-2 mb-3">
         <div className="w-7 h-7 rounded-lg bg-accent/15 flex items-center justify-center">
           <Sparkles size={14} className="text-accent" />
         </div>
         <div>
-          <div className="text-xs font-semibold text-accent uppercase tracking-wider">
+          <div className="section-title">
             Demande à ton hub
           </div>
           <div className="text-[10px] text-ink-400 font-mono">qwen 2.5 14b · local</div>

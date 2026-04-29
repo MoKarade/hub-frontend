@@ -127,14 +127,14 @@ export default function LocationsPage() {
           </div>
         </div>
 
-        {/* Stats */}
+        {/* Stats — KPI strip GA-style */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
           <StatTile label="Points" value={String(stats.count)} />
           <StatTile label="Jours couverts" value={String(stats.days)} />
           <StatTile
             label="Marche"
             value={String(stats.byActivity.walking ?? 0)}
-            color="text-accent"
+            color="data-positive"
           />
           <StatTile
             label="Voiture"
@@ -177,11 +177,9 @@ export default function LocationsPage() {
 
 function StatTile({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
-    <div className="panel p-3">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-1">
-        {label}
-      </div>
-      <div className={cn('text-lg font-semibold tabular-nums', color)}>{value}</div>
+    <div className="ga-card ga-card-hover px-4 py-3">
+      <div className="metric-label mb-1.5">{label}</div>
+      <div className={cn('metric truncate', color)}>{value}</div>
     </div>
   )
 }

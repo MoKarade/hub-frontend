@@ -118,13 +118,13 @@ function SearchPageInner() {
         </header>
 
         {/* Input */}
-        <div className="panel p-5 bg-gradient-to-br from-ink-900 to-ink-900/50 border-ink-700/60 mb-4">
+        <div className="ga-card p-5 mb-4">
           <div className="flex items-center gap-2 mb-3">
             <div className="w-7 h-7 rounded-lg bg-accent/15 flex items-center justify-center">
               <Sparkles size={14} className="text-accent" />
             </div>
             <div>
-              <div className="text-xs font-semibold text-accent uppercase tracking-wider">
+              <div className="section-title">
                 Demande à ton hub
               </div>
               <div className="text-[10px] text-ink-400 font-mono">qwen 2.5 14b · local</div>
@@ -226,19 +226,20 @@ function Conversation({ entry }: { entry: HistoryEntry }) {
                 <div className="text-sm leading-relaxed">{entry.response.answer}</div>
               </div>
 
-              <details className="panel px-4 py-2 group">
-                <summary className="flex items-center gap-2 cursor-pointer text-xs text-ink-400 hover:text-ink-200 transition-colors">
+              {/* SQL toujours visible par défaut (Sprint C : Marc l'a explicitement demandé). */}
+              <div className="ga-card px-4 py-3">
+                <div className="flex items-center gap-2 metric-label mb-2">
                   <Code2 size={12} />
                   <span>SQL généré</span>
-                  <span className="text-ink-500 ml-auto group-open:hidden">→</span>
-                </summary>
-                <pre className="mt-2 p-2 bg-ink-950 border border-ink-800 rounded text-[11px] font-mono text-ink-200 overflow-x-auto whitespace-pre-wrap">
+                </div>
+                <pre className="p-2 bg-ink-950 border border-ink-800 rounded text-[11px] font-mono text-ink-200 overflow-x-auto whitespace-pre-wrap">
                   {entry.response.sql}
                 </pre>
-              </details>
+              </div>
 
-              <details className="panel px-4 py-2 group">
-                <summary className="flex items-center gap-2 cursor-pointer text-xs text-ink-400 hover:text-ink-200 transition-colors">
+              {/* Résultat brut reste collapsable — verbeux, optionnel. */}
+              <details className="ga-card px-4 py-2 group">
+                <summary className="flex items-center gap-2 cursor-pointer metric-label hover:text-ink-200 transition-colors">
                   <Database size={12} />
                   <span>Résultat brut · {entry.response.row_count} ligne{entry.response.row_count > 1 ? 's' : ''}</span>
                   <span className="text-ink-500 ml-auto group-open:hidden">→</span>
