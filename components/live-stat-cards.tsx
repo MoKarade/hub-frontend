@@ -93,7 +93,7 @@ export function LiveStatCards() {
         value={balance !== null ? formatCurrency(balance, balanceCurrency) : '—'}
         sub={checkingAccount?.account_number_masked ?? 'pas de compte'}
         icon={Wallet}
-        trend={balance !== null && balance > 0 ? 'positive' : 'neutral'}
+        trend={balance !== null && parseFloat(balance) > 0 ? 'positive' : 'neutral'}
       />
       <StatCard
         label="Dépenses · ce mois"
