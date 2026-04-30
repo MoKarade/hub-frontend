@@ -40,7 +40,7 @@ function SearchFallback() {
   return (
     <div className="flex min-h-screen">
       <Sidebar />
-      <main className="flex-1 px-8 py-6 max-w-[1100px]">
+      <main className="flex-1 px-4 sm:px-6 lg:px-8 pt-16 lg:pt-6 pb-6 max-w-[1100px]">
         <div className="text-sm text-ink-400">Chargement…</div>
       </main>
     </div>
@@ -109,7 +109,7 @@ function SearchPageInner() {
     <div className="flex min-h-screen">
       <Sidebar />
 
-      <main className="flex-1 px-8 py-6 max-w-[1100px]">
+      <main className="flex-1 px-4 sm:px-6 lg:px-8 pt-16 lg:pt-6 pb-6 max-w-[1100px]">
         <header className="mb-6">
           <h1 className="text-2xl font-semibold tracking-tight">Recherche IA</h1>
           <p className="text-sm text-ink-400">

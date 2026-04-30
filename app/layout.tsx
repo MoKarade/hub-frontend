@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Inter, JetBrains_Mono } from 'next/font/google'
 import { Providers } from '@/components/providers'
+import { InstallPrompt } from '@/components/install-prompt'
 import './globals.css'
 
 const inter = Inter({
@@ -17,9 +18,34 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Personal Data Hub',
-  description: 'Hub centralisé des données personnelles avec IA locale',
+  title: 'Hub perso — Personal Data Hub',
+  description: 'Hub privé qui agrège toutes tes données personnelles avec une IA locale',
   robots: 'noindex, nofollow', // pas indexable
+  manifest: '/manifest.json',
+  applicationName: 'Hub perso',
+  appleWebApp: {
+    capable: true,
+    title: 'Hub perso',
+    statusBarStyle: 'black-translucent',
+  },
+  icons: {
+    icon: '/icon.svg',
+    apple: '/icon.svg',
+    shortcut: '/icon.svg',
+  },
+  formatDetection: {
+    telephone: false,
+  },
+}
+
+export const viewport: Viewport = {
+  themeColor: '#0f1419',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  // Permet le zoom utilisateur (accessibilité), interdit le zoom auto sur input focus iOS
+  userScalable: true,
+  colorScheme: 'dark',
 }
 
 export default function RootLayout({
@@ -30,7 +56,10 @@ export default function RootLayout({
   return (
     <html lang="fr" className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <body className="font-sans">
-        <Providers>{children}</Providers>
+        <Providers>
+          {children}
+          <InstallPrompt />
+        </Providers>
       </body>
     </html>
   )

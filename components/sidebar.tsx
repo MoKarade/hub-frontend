@@ -1,17 +1,19 @@
 'use client'
 
 /**
- * Sidebar — navigation principale (Sprint C).
+ * Sidebar — navigation principale (Sprint C + mobile).
  *
- * Modes :
+ * Modes desktop (≥lg):
  *   - Étendu (264 px) : icône + label + sections titrées
  *   - Réduit (60 px)  : icône seule, sections sans titre, tooltip au hover
  *
- * Persistance : état dans localStorage (`hub-sidebar-collapsed-v1`).
- * Le toggle est en bas de la sidebar (chevron).
+ * Mode mobile (<lg):
+ *   - Hamburger bouton fixed top-left
+ *   - Drawer overlay 80% width quand ouvert
+ *   - Backdrop cliquable pour fermer
+ *   - Auto-close sur navigation
  *
- * Mobile (<lg) : la sidebar reste fixe pour l'instant. Phase responsive
- * (hamburger) sera traitée plus tard dans le sprint.
+ * Persistance desktop : état dans localStorage (`hub-sidebar-collapsed-v1`).
  */
 
 import { useEffect, useState, type ComponentType } from 'react'
@@ -33,6 +35,8 @@ import {
   Boxes,
   PanelLeftClose,
   PanelLeftOpen,
+  Menu,
+  X,
 } from 'lucide-react'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import { cn } from '@/lib/utils'
@@ -163,12 +167,27 @@ export function Sidebar() {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const [hydrated, setHydrated] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
 
   // Hydration depuis localStorage (évite mismatch SSR)
   useEffect(() => {
     setCollapsed(loadCollapsed())
     setHydrated(true)
   }, [])
+
+  // Auto-close mobile drawer when route changes
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [pathname])
+
+  // Lock body scroll when mobile drawer open
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    document.body.style.overflow = mobileOpen ? 'hidden' : ''
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [mobileOpen])
 
   function toggle() {
     setCollapsed((prev) => {
@@ -178,17 +197,51 @@ export function Sidebar() {
     })
   }
 
-  // Pendant l'hydration, on rend le mode étendu par défaut pour éviter le flash
-  const isCollapsed = hydrated && collapsed
+  // Pendant l'hydration, on rend le mode étendu par défaut pour éviter le flash.
+  // En mobile (drawer ouvert), on force toujours expanded pour un meilleur UX.
+  const isCollapsed = hydrated && collapsed && !mobileOpen
 
   return (
     <Tooltip.Provider>
+      {/* Mobile: hamburger button (visible <lg) */}
+      <button
+        type="button"
+        onClick={() => setMobileOpen(true)}
+        aria-label="Ouvrir le menu"
+        className="lg:hidden fixed top-3 left-3 z-40 w-10 h-10 flex items-center justify-center rounded-lg bg-ink-900 border border-ink-700 text-ink-200 hover:bg-ink-800 transition-colors shadow-lg"
+      >
+        <Menu size={18} />
+      </button>
+
+      {/* Mobile: backdrop (visible <lg quand drawer ouvert) */}
+      {mobileOpen && (
+        <div
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+          className="lg:hidden fixed inset-0 z-40 bg-ink-950/70 backdrop-blur-sm animate-fade-in"
+        />
+      )}
+
       <aside
         className={cn(
-          'shrink-0 border-r border-ink-800 bg-ink-900/40 flex flex-col h-screen sticky top-0 transition-[width] duration-200 ease-out',
-          isCollapsed ? 'w-[60px]' : 'w-64'
+          // Desktop: sticky, integrated layout
+          'lg:shrink-0 lg:border-r lg:border-ink-800 lg:bg-ink-900/40 lg:flex lg:flex-col lg:h-screen lg:sticky lg:top-0 lg:transition-[width] lg:duration-200 lg:ease-out lg:translate-x-0',
+          isCollapsed ? 'lg:w-[60px]' : 'lg:w-64',
+          // Mobile: fixed drawer
+          'fixed inset-y-0 left-0 z-50 w-72 bg-ink-900 border-r border-ink-800 flex flex-col transition-transform duration-200 ease-out',
+          mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
       >
+        {/* Mobile: close button (visible <lg quand drawer ouvert) */}
+        <button
+          type="button"
+          onClick={() => setMobileOpen(false)}
+          aria-label="Fermer le menu"
+          className="lg:hidden absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-md text-ink-400 hover:text-ink-100 hover:bg-ink-800 transition-colors"
+        >
+          <X size={16} />
+        </button>
+
         {/* ── Logo ── */}
         <div
           className={cn(
@@ -265,11 +318,11 @@ export function Sidebar() {
             </div>
           )}
 
-          {/* Toggle collapse */}
+          {/* Toggle collapse — desktop only (mobile a son propre X) */}
           <button
             onClick={toggle}
             className={cn(
-              'w-full flex items-center justify-center gap-2 py-1.5 rounded-md text-[11px] text-ink-400 hover:text-ink-100 hover:bg-ink-800 transition-colors'
+              'hidden lg:flex w-full items-center justify-center gap-2 py-1.5 rounded-md text-[11px] text-ink-400 hover:text-ink-100 hover:bg-ink-800 transition-colors'
             )}
             aria-label={isCollapsed ? 'Étendre la sidebar' : 'Réduire la sidebar'}
             title={isCollapsed ? 'Étendre' : 'Réduire'}

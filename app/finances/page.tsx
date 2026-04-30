@@ -44,7 +44,7 @@ export default function FinancesPage() {
     <div className="flex min-h-screen">
       <Sidebar />
 
-      <main className="flex-1 px-8 py-6 max-w-[1400px]">
+      <main className="flex-1 px-4 sm:px-6 lg:px-8 pt-16 lg:pt-6 pb-6 max-w-[1400px]">
         <header className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Finances</h1>

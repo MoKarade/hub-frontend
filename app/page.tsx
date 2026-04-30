@@ -28,7 +28,7 @@ export default function DashboardPage() {
     <div className="flex min-h-screen">
       <Sidebar />
 
-      <main className="flex-1 px-6 py-6 max-w-[1400px] space-y-4 overflow-x-hidden">
+      <main className="flex-1 px-4 sm:px-6 lg:px-8 pt-16 lg:pt-6 pb-6 max-w-[1400px] space-y-4 overflow-x-hidden">
         {/* ── Top bar ── */}
         <header className="flex items-center justify-between mb-2">
           <div>

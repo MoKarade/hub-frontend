@@ -42,13 +42,16 @@ import { useLayout, type WidgetSize } from '@/lib/layout-context'
 
 // ── Column spans ──────────────────────────────────────────────────────────────
 
-/** Mappe une WidgetSize sur un col-span Tailwind (grille à 3 colonnes). */
+/**
+ * Mappe une WidgetSize sur un col-span responsive.
+ * Mobile (<sm) : tout 1 col. Tablette (sm-md) : 1-2 col. Desktop (md+) : 1-3 cols.
+ */
 const SIZE_COL: Record<WidgetSize, string> = {
-  sm: 'col-span-1',
-  md: 'col-span-1',
-  lg: 'col-span-2',
-  xl: 'col-span-3',
-  full: 'col-span-3',
+  sm:   'col-span-1',
+  md:   'col-span-1 sm:col-span-1',
+  lg:   'col-span-1 sm:col-span-2',
+  xl:   'col-span-1 sm:col-span-2 md:col-span-3',
+  full: 'col-span-1 sm:col-span-2 md:col-span-3',
 }
 
 // ── SortableItem ──────────────────────────────────────────────────────────────
@@ -145,7 +148,7 @@ export function WidgetGrid({ ids, children }: WidgetGridProps) {
       onDragEnd={handleDragEnd}
     >
       <SortableContext items={sortedIds} strategy={rectSortingStrategy}>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {sortedIds.map((id) => {
             const child = widgetMap.get(id)
             if (!child) return null

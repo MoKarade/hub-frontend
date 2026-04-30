@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5cdb95"/>
+      <stop offset="100%" stop-color="#3aa370"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <g transform="translate(128 128)" stroke="#0a0e14" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <!-- Boxes lucide icon scaled -->
+    <path d="M128 0 L256 64 L256 192 L128 256 L0 192 L0 64 Z"/>
+    <path d="M128 0 L128 256"/>
+    <path d="M0 64 L128 128 L256 64"/>
+  </g>
+</svg>

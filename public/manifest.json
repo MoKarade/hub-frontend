@@ -1,0 +1,39 @@
+{
+  "name": "Hub perso — Personal Data Hub",
+  "short_name": "Hub perso",
+  "description": "Hub privé qui agrège toutes tes données personnelles avec une IA locale",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a0e14",
+  "theme_color": "#0f1419",
+  "lang": "fr-CA",
+  "dir": "ltr",
+  "scope": "/",
+  "categories": ["productivity", "utilities", "finance"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Recherche IA",
+      "url": "/search",
+      "description": "Pose une question en français"
+    },
+    {
+      "name": "Finances",
+      "url": "/finances",
+      "description": "Tes transactions et soldes"
+    },
+    {
+      "name": "Localisation",
+      "url": "/locations",
+      "description": "Carte de tes déplacements"
+    }
+  ]
+}
