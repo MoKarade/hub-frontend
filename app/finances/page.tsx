@@ -7,18 +7,21 @@ import {
   CreditCard,
   TrendingUp,
   RefreshCw,
+  LayoutDashboard,
 } from 'lucide-react'
+import { ComingSoon } from '@/components/coming-soon'
 import useSWR from 'swr'
 import { useMemo, useState, type ComponentType } from 'react'
 import { api, type Account } from '@/lib/api'
 import { formatCurrency, formatDate, signedAmount, cn } from '@/lib/utils'
 
-type TabId = 'banking' | 'credit_card' | 'investments'
+type TabId = 'banking' | 'credit_card' | 'investments' | 'app'
 
 const TABS: { id: TabId; label: string; icon: ComponentType<{ size?: number; className?: string }> }[] = [
   { id: 'banking', label: 'Banque', icon: Wallet },
   { id: 'credit_card', label: 'Carte de crédit', icon: CreditCard },
   { id: 'investments', label: 'Investissement', icon: TrendingUp },
+  { id: 'app', label: 'App avancée', icon: LayoutDashboard },
 ]
 
 export default function FinancesPage() {
@@ -169,6 +172,23 @@ export default function FinancesPage() {
               endDate={endDate}
               search={search}
               accounts={accounts}
+            />
+          )}
+          {tab === 'app' && (
+            <ComingSoon
+              icon={LayoutDashboard}
+              title="App Finance avancée"
+              subtitle="Graphes interactifs · cashflow · catégorisation LLM · abonnements"
+              phase="Phase 2+"
+              eta="après stabilisation Phase 1"
+              description="Mini-app intégrée qui prolonge la table de transactions avec : graphes recharts (cashflow 12 mois, dépenses par catégorie en pie chart), tracking d'abonnements, performance portefeuille Disnat avec benchmarks. Versionnable v1/v2/v3 (ADR-0007)."
+              sources={['/v1/finance/* (hub-core API)', 'recharts pour graphes', 'Catégorisation LLM auto']}
+              capabilities={[
+                "Mes 5 plus grosses catégories de dépenses ce trimestre",
+                "Évolution de mon solde sur 12 mois (cashflow)",
+                "Performance de mon portefeuille vs S&P 500",
+                "Mes abonnements actifs et leur coût annuel total",
+              ]}
             />
           )}
         </div>

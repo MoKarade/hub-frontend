@@ -17,6 +17,7 @@
     "recharts": "^2.13.3",
     "leaflet": "^1.9.4",
     "react-leaflet": "^5.0.0",
+    "@vis.gl/react-google-maps": "^1.6.0",
     "framer-motion": "^11.11.17",
     "clsx": "^2.1.1",
     "tailwind-merge": "^2.5.4",

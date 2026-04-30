@@ -76,13 +76,6 @@ const SECTIONS: NavSection[] = [
     ],
   },
   {
-    title: 'Mes apps',
-    items: [
-      { label: 'Trajets', href: '/apps/trajets', icon: MapPin },
-      { label: 'Finance', href: '/apps/finance', icon: Wallet },
-    ],
-  },
-  {
     title: 'Système',
     items: [
       { label: 'Santé du hub', href: '/system/health', icon: Activity },
