@@ -10,6 +10,7 @@
 
 import { Sidebar } from '@/components/sidebar'
 import { HubStatus } from '@/components/hub-status'
+import { PasswordChecker } from '@/components/password-checker'
 import {
   Mail,
   Image as ImageIcon,
@@ -25,6 +26,7 @@ import {
   Unlink,
   AlertTriangle,
   Settings as SettingsIcon,
+  ShieldCheck,
   type LucideIcon,
 } from 'lucide-react'
 import { useEffect, useState, Suspense } from 'react'
@@ -97,8 +99,26 @@ function SettingsContent() {
   return (
     <div className="space-y-6">
       <GoogleConnectionsSection />
+      <SecuritySection />
       <PreferencesSection />
     </div>
+  )
+}
+
+function SecuritySection() {
+  return (
+    <section>
+      <header className="mb-3 flex items-center gap-2">
+        <ShieldCheck size={18} className="text-accent" />
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Sécurité</h2>
+          <p className="text-sm text-ink-400">
+            Vérifie tes mots de passe contre la base Have I Been Pwned · 100% local + gratuit
+          </p>
+        </div>
+      </header>
+      <PasswordChecker />
+    </section>
   )
 }
 
