@@ -20,35 +20,16 @@
 
 import { useState, type ReactNode } from 'react'
 import { motion } from 'framer-motion'
-import { Pin, PinOff, Maximize2, GripVertical } from 'lucide-react'
+import { Maximize2, GripVertical } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { fadeIn } from '@/lib/motion'
 import { FocusModal } from '@/components/focus-modal'
-import { useLayout, type WidgetSize } from '@/lib/layout-context'
-
-// ── Sizing ────────────────────────────────────────────────────────────────────
-
-const SIZE_LABELS: Record<WidgetSize, string> = {
-  sm: 'S',
-  md: 'M',
-  lg: 'L',
-  xl: 'XL',
-  full: '↔',
-}
-
-const SIZE_CYCLE: WidgetSize[] = ['sm', 'md', 'lg', 'xl', 'full']
-
-/** Retourne la prochaine taille dans le cycle. */
-function nextSize(current: WidgetSize): WidgetSize {
-  const idx = SIZE_CYCLE.indexOf(current)
-  return SIZE_CYCLE[(idx + 1) % SIZE_CYCLE.length]
-}
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 export interface WidgetProps {
-  /** Identifiant unique — clé dans LayoutProvider. */
+  /** Identifiant unique (utilisé pour aria-labels). */
   id: string
   title: string
   subtitle?: string
@@ -62,9 +43,6 @@ export interface WidgetProps {
    * Si absent, le mode focus affiche `children`.
    */
   focusContent?: ReactNode
-  /** Taille par défaut si absente du localStorage. */
-  defaultSize?: WidgetSize
-  defaultPinned?: boolean
   /** Boutons/actions supplémentaires dans le header (ex: liens, selects). */
   headerActions?: ReactNode
   /** Si true, retire le padding interne du body — pour les tables, cartes, etc. */
@@ -73,31 +51,23 @@ export interface WidgetProps {
   className?: string
   /**
    * Si true, déclenche l'animation ring-pulse (réception d'un événement SSE).
-   * Sprint B : passé depuis le hook useEventSource.
    */
   pulse?: boolean
-  /**
-   * Listeners dnd-kit (onPointerDown, etc.) injectés par SortableItem.
-   * Sprint B : câblés sur le drag handle GripVertical.
-   */
-  /** Listeners dnd-kit (onPointerDown, etc.) injectés par SortableItem (Sprint B). */
-  dragListeners?: Record<string, any>
-  /** Attributs ARIA dnd-kit injectés par SortableItem (Sprint B). */
-  dragAttributes?: Record<string, any>
+  /** Listeners dnd-kit (cas legacy WidgetGrid). Si absent, pas de drag handle. */
+  dragListeners?: Record<string, unknown>
+  /** Attributs ARIA dnd-kit (cas legacy). */
+  dragAttributes?: Record<string, unknown>
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function Widget({
-  id,
   title,
   subtitle,
   icon: Icon,
   badge,
   children,
   focusContent,
-  defaultSize = 'md',
-  defaultPinned = false,
   headerActions,
   noPadding = false,
   className,
@@ -105,13 +75,7 @@ export function Widget({
   dragListeners,
   dragAttributes,
 }: WidgetProps) {
-  const { getWidget, setSize, togglePin } = useLayout()
-  const config = getWidget(id, { size: defaultSize, pinned: defaultPinned })
   const [focusOpen, setFocusOpen] = useState(false)
-
-  function handleCycleSize() {
-    setSize(id, nextSize(config.size))
-  }
 
   return (
     <>
@@ -126,9 +90,7 @@ export function Widget({
         }}
         className={cn(
           'panel flex flex-col group relative',
-          // Anneau vert discret si épinglé
-          config.pinned && 'ring-1 ring-accent/25',
-          // Animation SSE (Sprint B)
+          // Animation SSE (pulse ring sur new event)
           pulse && 'animate-ring-pulse',
           className
         )}
@@ -136,18 +98,20 @@ export function Widget({
         {/* ── Header ── */}
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-ink-800/70 shrink-0">
 
-          {/* Drag handle — câblé dnd-kit Sprint B */}
-          <span
-            {...(dragListeners ?? {})}
-            {...(dragAttributes ?? {})}
-            className="inline-flex cursor-grab active:cursor-grabbing touch-none shrink-0"
-          >
-            <GripVertical
-              size={13}
-              className="text-ink-700 group-hover:text-ink-500 transition-colors select-none"
-              aria-hidden="true"
-            />
-          </span>
+          {/* Drag handle — affiche uniquement si dragListeners (mode sortable) */}
+          {dragListeners && (
+            <span
+              {...dragListeners}
+              {...(dragAttributes ?? {})}
+              className="inline-flex cursor-grab active:cursor-grabbing touch-none shrink-0"
+            >
+              <GripVertical
+                size={13}
+                className="text-ink-700 group-hover:text-ink-500 transition-colors select-none"
+                aria-hidden="true"
+              />
+            </span>
+          )}
 
           {Icon && (
             <Icon size={13} className="text-accent/60 shrink-0" aria-hidden="true" />
@@ -176,33 +140,12 @@ export function Widget({
           {headerActions}
 
           {/* ── Contrôles widget — visibles au hover ── */}
+          {/* Mode focus uniquement (size/pin retirés avec le drag-drop) */}
           <div
             className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 shrink-0"
             role="toolbar"
             aria-label={`Contrôles du widget ${title}`}
           >
-            {/* Cycle de taille */}
-            <button
-              onClick={handleCycleSize}
-              title={`Taille : ${SIZE_LABELS[config.size]} → ${SIZE_LABELS[nextSize(config.size)]}`}
-              className="w-5 h-5 flex items-center justify-center text-[9px] font-mono font-bold text-ink-400 hover:text-ink-100 hover:bg-ink-700 rounded transition-colors"
-            >
-              {SIZE_LABELS[config.size]}
-            </button>
-
-            {/* Épingle */}
-            <button
-              onClick={() => togglePin(id)}
-              title={config.pinned ? 'Désépingler' : 'Épingler en haut'}
-              className="p-1 text-ink-400 hover:text-accent hover:bg-ink-700 rounded transition-colors"
-            >
-              {config.pinned
-                ? <PinOff size={11} aria-label="Désépingler" />
-                : <Pin size={11} aria-label="Épingler" />
-              }
-            </button>
-
-            {/* Mode focus */}
             <button
               onClick={() => setFocusOpen(true)}
               title="Mode focus — plein écran"
