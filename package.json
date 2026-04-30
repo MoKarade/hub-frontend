@@ -16,7 +16,7 @@
     "lucide-react": "^0.460.0",
     "recharts": "^2.13.3",
     "leaflet": "^1.9.4",
-    "react-leaflet": "^4.2.1",
+    "react-leaflet": "^5.0.0",
     "framer-motion": "^11.11.17",
     "clsx": "^2.1.1",
     "tailwind-merge": "^2.5.4",
