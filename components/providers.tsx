@@ -4,12 +4,16 @@
  * Providers — wrapper client pour app/layout.tsx.
  *
  * Regroupe tous les providers globaux qui nécessitent 'use client'
- * (framer-motion AnimatePresence, LayoutProvider, futurs: ThemeProvider, etc.)
- * pour garder app/layout.tsx en Server Component.
+ * (LayoutProvider, futurs: ThemeProvider, etc.) pour garder
+ * app/layout.tsx en Server Component.
+ *
+ * Note: les transitions de page sont gérées dans app/template.tsx
+ * (motion.div avec pageTransition variants), pas ici. AnimatePresence
+ * au niveau layout cause des conflits de key avec les autres enfants
+ * (InstallPrompt, etc.) et ne donne pas de vrai exit() en App Router.
  */
 
 import type { ReactNode } from 'react'
-import { AnimatePresence } from 'framer-motion'
 import { LayoutProvider } from '@/lib/layout-context'
 
 interface ProvidersProps {
@@ -17,12 +21,5 @@ interface ProvidersProps {
 }
 
 export function Providers({ children }: ProvidersProps) {
-  return (
-    <LayoutProvider>
-      {/* AnimatePresence ici active les animations exit() sur toutes les pages */}
-      <AnimatePresence mode="wait">
-        {children}
-      </AnimatePresence>
-    </LayoutProvider>
-  )
+  return <LayoutProvider>{children}</LayoutProvider>
 }
