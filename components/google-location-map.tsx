@@ -14,7 +14,7 @@
  * un message d'erreur clair s'affiche avec les liens pour résoudre.
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { APIProvider, Map, Marker } from '@vis.gl/react-google-maps'
 import { ExternalLink, Key, AlertTriangle } from 'lucide-react'
 import type { LocationPoint } from '@/lib/api'
@@ -35,31 +35,35 @@ export function GoogleLocationMap({ points }: Props) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
   const [loadError, setLoadError] = useState<string | null>(null)
 
+  // Filtre les points GPS invalides (NaN, hors-range) pour ne pas crasher la carte
+  const validPoints = useMemo(
+    () =>
+      points.filter((p) => {
+        const lat = parseFloat(p.latitude)
+        const lng = parseFloat(p.longitude)
+        return (
+          Number.isFinite(lat) &&
+          Number.isFinite(lng) &&
+          lat >= -90 && lat <= 90 &&
+          lng >= -180 && lng <= 180
+        )
+      }),
+    [points]
+  )
+
   // Centre par défaut : Lévis
   const center = useMemo(() => {
-    if (points.length === 0) return { lat: 46.7383, lng: -71.2433 }
-    const lats = points.map((p) => parseFloat(p.latitude))
-    const lngs = points.map((p) => parseFloat(p.longitude))
+    if (validPoints.length === 0) return { lat: 46.7383, lng: -71.2433 }
+    const lats = validPoints.map((p) => parseFloat(p.latitude))
+    const lngs = validPoints.map((p) => parseFloat(p.longitude))
     return {
       lat: lats.reduce((a, b) => a + b, 0) / lats.length,
       lng: lngs.reduce((a, b) => a + b, 0) / lngs.length,
     }
-  }, [points])
+  }, [validPoints])
 
-  // Listen for Google Maps API errors via console.error monkey-patch
-  useEffect(() => {
-    if (!apiKey) return
-    const original = console.error
-    console.error = (...args: unknown[]) => {
-      const msg = String(args[0] ?? '')
-      if (msg.includes('Google Maps') || msg.includes('ApiNotActivatedMapError') ||
-          msg.includes('InvalidKeyMapError') || msg.includes('RefererNotAllowedMapError')) {
-        setLoadError(msg.split('\n')[0].slice(0, 200))
-      }
-      original.apply(console, args as Parameters<typeof console.error>)
-    }
-    return () => { console.error = original }
-  }, [apiKey])
+  // Erreurs Google Maps capturées uniquement via APIProvider.onError (cf. ci-dessous)
+  // Plus de monkey-patch global de console.error (anti-pattern qui pollue le namespace)
 
   if (!apiKey) {
     return <ApiKeyMissing />
@@ -71,7 +75,13 @@ export function GoogleLocationMap({ points }: Props) {
 
   return (
     <div className="w-full h-full">
-      <APIProvider apiKey={apiKey} onError={(e) => setLoadError(String(e))}>
+      <APIProvider
+        apiKey={apiKey}
+        onError={(e) => {
+          const msg = e instanceof Error ? e.message : String(e)
+          setLoadError(msg.slice(0, 200))
+        }}
+      >
         <Map
           defaultCenter={center}
           defaultZoom={11}
@@ -79,7 +89,7 @@ export function GoogleLocationMap({ points }: Props) {
           disableDefaultUI={false}
           style={{ width: '100%', height: '100%' }}
         >
-          {points.map((p) => {
+          {validPoints.map((p) => {
             const color = ACTIVITY_COLORS[p.activity_type ?? 'unknown'] ?? ACTIVITY_COLORS.unknown
             return (
               <Marker

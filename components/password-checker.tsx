@@ -14,7 +14,7 @@
  * Doc : https://haveibeenpwned.com/API/v3#PwnedPasswords
  */
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Eye, EyeOff, Shield, ShieldAlert, ShieldCheck, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -36,7 +36,7 @@ async function sha1HexUpper(text: string): Promise<string> {
     .toUpperCase()
 }
 
-async function checkPassword(password: string): Promise<CheckResult> {
+async function checkPassword(password: string, signal?: AbortSignal): Promise<CheckResult> {
   if (!password) return { status: 'idle' }
 
   try {
@@ -46,6 +46,7 @@ async function checkPassword(password: string): Promise<CheckResult> {
 
     const resp = await fetch(`${HIBP_API}/${prefix}`, {
       headers: { 'Add-Padding': 'true' }, // padding pour ne pas leak la length
+      signal,
     })
     if (!resp.ok) {
       return { status: 'error', message: `HIBP API ${resp.status}` }
@@ -56,13 +57,16 @@ async function checkPassword(password: string): Promise<CheckResult> {
       const [s, c] = line.trim().split(':')
       if (s === suffix) {
         const count = parseInt(c, 10)
-        if (count > 0) {
+        if (Number.isFinite(count) && count > 0) {
           return { status: 'pwned', count }
         }
       }
     }
     return { status: 'safe' }
   } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      return { status: 'idle' }
+    }
     return { status: 'error', message: err instanceof Error ? err.message : 'Erreur inconnue' }
   }
 }
@@ -71,16 +75,25 @@ export function PasswordChecker() {
   const [password, setPassword] = useState('')
   const [show, setShow] = useState(false)
   const [result, setResult] = useState<CheckResult>({ status: 'idle' })
+  const abortRef = useRef<AbortController | null>(null)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (password.length < 1) return
+    // Annule la vérification précédente (évite race condition affichant un
+    // résultat obsolète si l'user re-soumet rapidement).
+    abortRef.current?.abort()
+    const ac = new AbortController()
+    abortRef.current = ac
     setResult({ status: 'checking' })
-    const res = await checkPassword(password)
-    setResult(res)
+    const res = await checkPassword(password, ac.signal)
+    if (!ac.signal.aborted) {
+      setResult(res)
+    }
   }
 
   function handleClear() {
+    abortRef.current?.abort()
     setPassword('')
     setResult({ status: 'idle' })
   }

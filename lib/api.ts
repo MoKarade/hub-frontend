@@ -17,6 +17,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       'Content-Type': 'application/json',
+      // Header custom = simple-CSRF defense : toute requête CSRF cross-origin
+      // déclencherait un preflight OPTIONS, que le backend peut bloquer si
+      // l'origine n'est pas dans CORS_ALLOWED_ORIGINS.
+      'X-Hub-Client': 'web',
       ...(init?.headers || {}),
     },
     credentials: 'include',
