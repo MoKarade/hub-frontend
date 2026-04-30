@@ -266,4 +266,35 @@ export const api = {
       get: (id: string) => request<LocationPoint>(`/v1/locations/points/${id}`),
     },
   },
+
+  oauth: {
+    /** URL absolue pour rediriger le browser (pas un fetch). */
+    startUrl: (service: string) =>
+      `${BASE_URL}/v1/oauth/google/start?service=${encodeURIComponent(service)}`,
+    /** Liste les tokens OAuth en DB (jamais les valeurs en clair). */
+    status: () => request<OAuthStatusResponse>('/v1/oauth/status'),
+    /** Révoque le token d'un service. */
+    revoke: (service: string) =>
+      request<{ status: string; service: string }>(
+        `/v1/oauth/google/${encodeURIComponent(service)}/revoke`,
+        { method: 'POST' }
+      ),
+  },
+}
+
+export type OAuthStatusItem = {
+  provider: string
+  service: string
+  user_email: string
+  connected: boolean
+  expired: boolean
+  revoked: boolean
+  scopes: string[]
+  expires_at: string
+  last_refreshed_at: string | null
+}
+
+export type OAuthStatusResponse = {
+  tokens: OAuthStatusItem[]
+  available_services: string[]
 }
