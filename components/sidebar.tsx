@@ -295,20 +295,47 @@ export function Sidebar() {
           ))}
         </nav>
 
-        {/* ── Status footer ── */}
+        {/* ── Avatar + status footer ── */}
         <div
           className={cn(
             'border-t border-ink-800',
-            isCollapsed ? 'px-1 py-2' : 'px-4 py-3'
+            isCollapsed ? 'px-1 py-2' : 'px-3 py-3'
           )}
         >
-          {!isCollapsed && (
-            <div className="text-[11px] text-ink-400 font-mono mb-2">
-              <div className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse-slow" />
-                <span>hub up · 2m ago</span>
+          {!isCollapsed ? (
+            <Link
+              href="/settings"
+              className="flex items-center gap-2.5 px-1.5 py-1.5 rounded-md hover:bg-ink-800/60 transition-colors mb-1 group"
+            >
+              <div className="relative shrink-0">
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-accent to-info flex items-center justify-center text-[11px] font-bold text-ink-950 shadow-sm">
+                  M
+                </div>
+                <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-data-positive border-2 border-ink-900 animate-pulse-slow" />
               </div>
-            </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[12px] font-semibold text-ink-100 truncate group-hover:text-accent transition-colors">
+                  Marc
+                </div>
+                <div className="text-[10px] text-ink-500 font-mono truncate">
+                  hub up · Lévis QC
+                </div>
+              </div>
+            </Link>
+          ) : (
+            <Link
+              href="/settings"
+              className="flex justify-center mb-1"
+              aria-label="Profil"
+              title="Marc"
+            >
+              <div className="relative">
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-accent to-info flex items-center justify-center text-[11px] font-bold text-ink-950">
+                  M
+                </div>
+                <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-data-positive border-2 border-ink-900 animate-pulse-slow" />
+              </div>
+            </Link>
           )}
 
           {/* Toggle collapse — desktop only (mobile a son propre X) */}

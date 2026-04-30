@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter, JetBrains_Mono } from 'next/font/google'
 import { Providers } from '@/components/providers'
 import { InstallPrompt } from '@/components/install-prompt'
+import { Toaster } from '@/components/toaster'
 import './globals.css'
 
 const inter = Inter({
@@ -59,6 +60,7 @@ export default function RootLayout({
         <Providers>
           {children}
           <InstallPrompt />
+          <Toaster />
         </Providers>
       </body>
     </html>

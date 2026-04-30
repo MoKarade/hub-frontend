@@ -27,6 +27,7 @@ import {
 import { useState, useRef, useEffect, Suspense, useMemo } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { api, ApiError } from '@/lib/api'
+import { toast } from '@/lib/toast'
 import {
   loadHistory,
   saveHistory,
@@ -174,12 +175,16 @@ function SearchInner() {
 
   function deleteConversation(id: string, e?: React.MouseEvent) {
     e?.stopPropagation()
+    const conv = conversations.find((c) => c.id === id)
     const next = conversations.filter((c) => c.id !== id)
     persistAndSet(next)
     if (activeConvId === id) {
       setActiveConvId(null)
       router.push(pathname, { scroll: false })
     }
+    toast.success('Conversation supprimée', {
+      description: conv?.title ? `« ${conv.title} »` : undefined,
+    })
   }
 
   async function ask(q: string) {
@@ -272,6 +277,7 @@ function SearchInner() {
           : c
       )
       persistAndSet(convs)
+      toast.apiError(err, 'Recherche IA en échec')
     }
   }
 
