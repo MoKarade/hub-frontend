@@ -11,6 +11,7 @@
 import { Sidebar } from '@/components/sidebar'
 import { HubStatus } from '@/components/hub-status'
 import { PasswordChecker } from '@/components/password-checker'
+import { BulkPasswordChecker } from '@/components/bulk-password-checker'
 import {
   Mail,
   Image as ImageIcon,
@@ -111,13 +112,24 @@ function SecuritySection() {
       <header className="mb-3 flex items-center gap-2">
         <ShieldCheck size={18} className="text-accent" />
         <div>
-          <h2 className="text-lg font-semibold tracking-tight">Sécurité</h2>
+          <h2 className="text-lg font-semibold tracking-tight">Sécurité des mots de passe</h2>
           <p className="text-sm text-ink-400">
-            Vérifie tes mots de passe contre la base Have I Been Pwned · 100% local + gratuit
+            Vérification contre Have I Been Pwned · 700M+ fuites · 100% local + gratuit
           </p>
         </div>
       </header>
-      <PasswordChecker />
+      <div className="space-y-4">
+        <BulkPasswordChecker />
+        <details className="ga-card p-3 group">
+          <summary className="cursor-pointer text-sm text-ink-300 hover:text-ink-100 transition-colors flex items-center gap-2">
+            <span className="text-accent">+</span>
+            Vérifier un mot de passe individuel (sans CSV)
+          </summary>
+          <div className="mt-3">
+            <PasswordChecker />
+          </div>
+        </details>
+      </div>
     </section>
   )
 }
