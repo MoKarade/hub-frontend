@@ -331,6 +331,11 @@ export type PhotoItem = {
   is_video: boolean
   base_url: string | null
   product_url: string | null
+  latitude?: number | null
+  longitude?: number | null
+  location_name?: string | null
+  camera_make?: string | null
+  camera_model?: string | null
 }
 
 export type PhotosSyncResponse = {
@@ -588,6 +593,21 @@ export const api = {
         errors: number
         duration_seconds: number
       }>(`/v1/photos/picker/import/${sessionId}`, { method: 'POST' }),
+    enrichGps: (opts: { max_photos?: number; do_geocode?: boolean } = {}) =>
+      request<{
+        processed: number
+        with_gps: number
+        geocoded: number
+        errors: number
+        duration_seconds: number
+      }>('/v1/photos/enrich-gps', {
+        method: 'POST',
+        body: JSON.stringify({
+          user_email: 'marc.richard4@gmail.com',
+          max_photos: opts.max_photos ?? 100,
+          do_geocode: opts.do_geocode ?? true,
+        }),
+      }),
   },
 
   drive: {

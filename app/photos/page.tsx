@@ -11,10 +11,20 @@ import {
   ExternalLink,
   Filter,
   X,
+  MapPin,
+  Grid3X3,
+  Map as MapIcon,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import dynamic from 'next/dynamic'
 import useSWR, { mutate as swrMutate } from 'swr'
 import { api, type PhotoItem, type PhotosStatsResponse } from '@/lib/api'
+
+// Dynamic import : Leaflet a besoin de window (SSR off)
+const PhotosMap = dynamic(
+  () => import('@/components/photos-map').then((m) => m.PhotosMap),
+  { ssr: false }
+)
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 
@@ -34,9 +44,12 @@ function thumbUrl(mediaId: string, size = 200): string {
 
 export default function PhotosPage() {
   const [syncing, setSyncing] = useState(false)
+  const [enriching, setEnriching] = useState(false)
+  const [view, setView] = useState<'grid' | 'map'>('grid')
   const [filterType, setFilterType] = useState<FilterType>('all')
   const [activeYear, setActiveYear] = useState<string | null>(null)
   const [activeCamera, setActiveCamera] = useState<string | null>(null)
+  const [onlyGeo, setOnlyGeo] = useState(false)
   const [since, setSince] = useState('')
   const [until, setUntil] = useState('')
   const [sort, setSort] = useState<SortField>('date_desc')
@@ -57,7 +70,7 @@ export default function PhotosPage() {
     api.photos.stats()
   )
 
-  // Filter cote front : annee + camera + sort
+  // Filter cote front : annee + camera + geo + sort
   const visible = useMemo(() => {
     if (!photos) return []
     let list = photos
@@ -65,6 +78,12 @@ export default function PhotosPage() {
       list = list.filter(
         (p) => new Date(p.creation_time).getFullYear().toString() === activeYear
       )
+    }
+    if (onlyGeo) {
+      list = list.filter((p) => p.latitude != null && p.longitude != null)
+    }
+    if (activeCamera) {
+      list = list.filter((p) => p.camera_model === activeCamera)
     }
     // Sort
     const sorted = [...list]
@@ -131,10 +150,27 @@ export default function PhotosPage() {
     }
   }
 
+  async function handleEnrichGps() {
+    setEnriching(true)
+    try {
+      const res = await api.photos.enrichGps({ max_photos: 100, do_geocode: true })
+      toast.success(
+        `Enrichissement OK · ${res.with_gps}/${res.processed} avec GPS · ${res.geocoded} géocodés`,
+        { description: `${res.duration_seconds}s` }
+      )
+      void swrMutate(['photos', filterType, since, until])
+    } catch (err) {
+      toast.apiError(err, 'Enrichissement GPS échoué')
+    } finally {
+      setEnriching(false)
+    }
+  }
+
   function clearFilters() {
     setFilterType('all')
     setActiveYear(null)
     setActiveCamera(null)
+    setOnlyGeo(false)
     setSince('')
     setUntil('')
   }
@@ -143,6 +179,7 @@ export default function PhotosPage() {
     filterType !== 'all',
     activeYear,
     activeCamera,
+    onlyGeo,
     since,
     until,
   ].filter(Boolean).length
@@ -160,19 +197,77 @@ export default function PhotosPage() {
                 : '…'}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={handleSync}
-            disabled={syncing}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-ink-950 text-xs font-semibold hover:bg-accent-light transition-colors disabled:opacity-50"
-          >
-            {syncing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-            {syncing ? 'Picker…' : 'Picker Photos'}
-          </button>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={handleSync}
+              disabled={syncing}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-ink-950 text-xs font-semibold hover:bg-accent-light transition-colors disabled:opacity-50"
+            >
+              {syncing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+              {syncing ? 'Picker…' : 'Picker Photos'}
+            </button>
+            <button
+              type="button"
+              onClick={handleEnrichGps}
+              disabled={enriching}
+              title="Télécharge les bytes des photos sans GPS + extrait l'EXIF + reverse geocode (lent : ~1s/photo)"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-ink-800 border border-ink-700 hover:border-info/40 hover:text-info text-xs disabled:opacity-50"
+            >
+              {enriching ? (
+                <Loader2 size={11} className="animate-spin" />
+              ) : (
+                <MapPin size={11} />
+              )}
+              {enriching ? 'Enrich…' : 'Enrichir GPS'}
+            </button>
+          </div>
         </header>
 
-        {/* Type filter (Tous / Photos / Vidéos) */}
+        {/* View toggle Grid / Carte + Type filter */}
         <div className="flex flex-wrap items-center gap-2 mb-3">
+          <div className="flex">
+            <button
+              type="button"
+              onClick={() => setView('grid')}
+              className={cn(
+                'px-2.5 py-1 text-xs border-y border-l border-ink-700 rounded-l inline-flex items-center gap-1',
+                view === 'grid'
+                  ? 'bg-accent/15 border-accent/30 text-accent'
+                  : 'bg-ink-800 text-ink-300'
+              )}
+            >
+              <Grid3X3 size={11} />
+              Grille
+            </button>
+            <button
+              type="button"
+              onClick={() => setView('map')}
+              className={cn(
+                'px-2.5 py-1 text-xs border border-ink-700 rounded-r inline-flex items-center gap-1',
+                view === 'map'
+                  ? 'bg-accent/15 border-accent/30 text-accent'
+                  : 'bg-ink-800 text-ink-300'
+              )}
+            >
+              <MapIcon size={11} />
+              Carte
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setOnlyGeo((v) => !v)}
+            className={cn(
+              'inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] border',
+              onlyGeo
+                ? 'bg-info/15 border-info/30 text-info'
+                : 'bg-ink-800 border-ink-700 text-ink-400'
+            )}
+          >
+            <MapPin size={10} /> Avec GPS
+          </button>
+
           <div className="flex">
             {(['all', 'photos', 'videos'] as FilterType[]).map((f) => (
               <button
@@ -345,6 +440,8 @@ export default function PhotosPage() {
                   : 'Aucun match avec ces filtres'}
               </p>
             </div>
+          ) : view === 'map' ? (
+            <PhotosMap photos={visible} thumbUrl={thumbUrl} />
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-1">
               {visible.map((p) => (
