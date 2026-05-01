@@ -15,7 +15,7 @@ import {
   Grid3X3,
   Map as MapIcon,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import useSWR, { mutate as swrMutate } from 'swr'
 import { api, type PhotoItem, type PhotosStatsResponse } from '@/lib/api'
@@ -49,11 +49,13 @@ export default function PhotosPage() {
   const [filterType, setFilterType] = useState<FilterType>('all')
   const [activeYear, setActiveYear] = useState<string | null>(null)
   const [activeCamera, setActiveCamera] = useState<string | null>(null)
+  const [activeLocation, setActiveLocation] = useState<string | null>(null)
   const [onlyGeo, setOnlyGeo] = useState(false)
   const [since, setSince] = useState('')
   const [until, setUntil] = useState('')
   const [sort, setSort] = useState<SortField>('date_desc')
   const [showFilters, setShowFilters] = useState(false)
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null)
 
   const { data: photos } = useSWR<PhotoItem[]>(
     ['photos', filterType, since, until],
@@ -70,7 +72,7 @@ export default function PhotosPage() {
     api.photos.stats()
   )
 
-  // Filter cote front : annee + camera + geo + sort
+  // Filter cote front : annee + camera + geo + location + sort
   const visible = useMemo(() => {
     if (!photos) return []
     let list = photos
@@ -84,6 +86,9 @@ export default function PhotosPage() {
     }
     if (activeCamera) {
       list = list.filter((p) => p.camera_model === activeCamera)
+    }
+    if (activeLocation) {
+      list = list.filter((p) => p.location_name?.includes(activeLocation))
     }
     // Sort
     const sorted = [...list]
@@ -170,6 +175,7 @@ export default function PhotosPage() {
     setFilterType('all')
     setActiveYear(null)
     setActiveCamera(null)
+    setActiveLocation(null)
     setOnlyGeo(false)
     setSince('')
     setUntil('')
@@ -179,10 +185,28 @@ export default function PhotosPage() {
     filterType !== 'all',
     activeYear,
     activeCamera,
+    activeLocation,
     onlyGeo,
     since,
     until,
   ].filter(Boolean).length
+
+  // Locations agregees depuis les photos chargees (top niveau : pays / region / ville)
+  const locationOptions = useMemo(() => {
+    if (!photos) return [] as { name: string; count: number }[]
+    const counts = new Map<string, number>()
+    for (const p of photos) {
+      if (!p.location_name) continue
+      // Decompose "Lévis, QC, Canada" en composants
+      for (const part of p.location_name.split(',').map((s) => s.trim())) {
+        if (part) counts.set(part, (counts.get(part) ?? 0) + 1)
+      }
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 12)
+      .map(([name, count]) => ({ name, count }))
+  }, [photos])
 
   return (
     <div className="flex min-h-screen">
@@ -408,6 +432,35 @@ export default function PhotosPage() {
           </div>
         )}
 
+        {/* Filter par localisation (depuis location_name geocode) */}
+        {locationOptions.length > 0 && (
+          <div className="ga-card p-2 mb-3">
+            <div className="flex flex-wrap gap-1 items-center">
+              <span className="text-[10px] uppercase tracking-wider text-ink-500 mr-1">
+                <MapPin size={9} className="inline" /> Lieux :
+              </span>
+              {locationOptions.map((loc) => (
+                <button
+                  key={loc.name}
+                  type="button"
+                  onClick={() =>
+                    setActiveLocation(loc.name === activeLocation ? null : loc.name)
+                  }
+                  className={cn(
+                    'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border',
+                    activeLocation === loc.name
+                      ? 'bg-info/15 border-info/30 text-info'
+                      : 'bg-ink-800 border-ink-700 text-ink-300 hover:text-ink-100'
+                  )}
+                >
+                  {loc.name}
+                  <span className="font-mono text-[10px] text-ink-500">{loc.count}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Top caméras */}
         {stats && stats.by_camera.length > 0 && (
           <div className="ga-card p-2 mb-3">
@@ -444,12 +497,22 @@ export default function PhotosPage() {
             <PhotosMap photos={visible} thumbUrl={thumbUrl} />
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-1">
-              {visible.map((p) => (
-                <PhotoCard key={p.id} photo={p} />
+              {visible.map((p, idx) => (
+                <PhotoCard key={p.id} photo={p} onClick={() => setLightboxIdx(idx)} />
               ))}
             </div>
           )}
         </div>
+
+        {/* Lightbox modal */}
+        {lightboxIdx !== null && visible[lightboxIdx] && (
+          <Lightbox
+            photos={visible}
+            index={lightboxIdx}
+            onClose={() => setLightboxIdx(null)}
+            onNavigate={setLightboxIdx}
+          />
+        )}
 
         <div className="mt-3">
           <HubStatus />
@@ -481,17 +544,17 @@ function Kpi({
   )
 }
 
-function PhotoCard({ photo }: { photo: PhotoItem }) {
+function PhotoCard({ photo, onClick }: { photo: PhotoItem; onClick: () => void }) {
   // Use proxy backend pour le thumbnail (Picker baseUrl requiert auth)
   const thumb = thumbUrl(photo.media_id, 200)
   const [errored, setErrored] = useState(false)
+  const subtitle = photo.location_name ?? new Date(photo.creation_time).toLocaleDateString('fr-CA')
   return (
-    <a
-      href={photo.product_url ?? '#'}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="relative group aspect-square bg-ink-800 rounded overflow-hidden hover:ring-1 hover:ring-accent transition"
-      title={`${photo.filename ?? '(sans nom)'} · ${new Date(photo.creation_time).toLocaleDateString('fr-CA')}`}
+    <button
+      type="button"
+      onClick={onClick}
+      className="relative group aspect-square bg-ink-800 rounded overflow-hidden hover:ring-1 hover:ring-accent transition cursor-zoom-in"
+      title={`${photo.filename ?? '(sans nom)'} · ${subtitle}`}
     >
       {!errored ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -515,16 +578,143 @@ function PhotoCard({ photo }: { photo: PhotoItem }) {
           <Video size={11} className="text-warn" />
         </div>
       )}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-ink-950/90 to-transparent p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        <div className="text-[9px] font-mono text-ink-200 truncate">
-          {new Date(photo.creation_time).toLocaleDateString('fr-CA')}
-        </div>
-      </div>
-      {photo.product_url && (
-        <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-100">
-          <ExternalLink size={10} className="text-ink-200" />
+      {photo.latitude != null && (
+        <div className="absolute top-1 left-1 bg-ink-950/70 rounded p-0.5" title={photo.location_name ?? ''}>
+          <MapPin size={10} className="text-info" />
         </div>
       )}
-    </a>
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-ink-950/90 to-transparent p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="text-[9px] font-mono text-ink-200 truncate">{subtitle}</div>
+      </div>
+    </button>
+  )
+}
+
+// ============================================================================
+// Lightbox modal (preview taille reelle + navigation prev/next)
+// ============================================================================
+
+function Lightbox({
+  photos,
+  index,
+  onClose,
+  onNavigate,
+}: {
+  photos: PhotoItem[]
+  index: number
+  onClose: () => void
+  onNavigate: (i: number) => void
+}) {
+  const photo = photos[index]
+  // Image full-size via proxy thumbnail size 1200 (vs 200 pour grid)
+  const fullUrl = thumbUrl(photo.media_id, 1200)
+
+  // Keyboard navigation : Escape ferme, fleches naviguent
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+      else if (e.key === 'ArrowLeft' && index > 0) onNavigate(index - 1)
+      else if (e.key === 'ArrowRight' && index < photos.length - 1) onNavigate(index + 1)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [index, photos.length, onClose, onNavigate])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-ink-950/95 backdrop-blur flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      {/* Close */}
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-ink-900/80 hover:bg-ink-800 text-ink-200 z-10"
+        aria-label="Fermer"
+      >
+        <X size={18} />
+      </button>
+
+      {/* Prev */}
+      {index > 0 && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onNavigate(index - 1)
+          }}
+          className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full bg-ink-900/80 hover:bg-ink-800 text-ink-200"
+          aria-label="Précédente"
+        >
+          ‹
+        </button>
+      )}
+
+      {/* Next */}
+      {index < photos.length - 1 && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onNavigate(index + 1)
+          }}
+          className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full bg-ink-900/80 hover:bg-ink-800 text-ink-200"
+          aria-label="Suivante"
+        >
+          ›
+        </button>
+      )}
+
+      {/* Image */}
+      <div
+        className="relative max-w-[90vw] max-h-[85vh] flex flex-col items-center"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={fullUrl}
+          alt={photo.filename ?? ''}
+          className="max-w-full max-h-[80vh] object-contain rounded"
+        />
+        {/* Footer avec metadata */}
+        <div className="mt-3 text-center text-[12px] text-ink-300 max-w-full">
+          <div className="font-medium">{photo.filename ?? '(sans nom)'}</div>
+          <div className="text-ink-500 font-mono text-[11px] flex items-center justify-center gap-3 flex-wrap mt-1">
+            <span>{new Date(photo.creation_time).toLocaleString('fr-CA')}</span>
+            {photo.location_name && (
+              <span className="inline-flex items-center gap-1">
+                <MapPin size={10} className="text-info" />
+                {photo.location_name}
+              </span>
+            )}
+            {photo.camera_model && (
+              <span className="inline-flex items-center gap-1">
+                <Camera size={10} />
+                {photo.camera_model}
+              </span>
+            )}
+            {photo.width && photo.height && (
+              <span>
+                {photo.width} × {photo.height}
+              </span>
+            )}
+            <span className="text-[10px] font-mono text-ink-600">
+              {index + 1} / {photos.length}
+            </span>
+          </div>
+          {photo.product_url && (
+            <a
+              href={photo.product_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 mt-2 text-[11px] text-accent hover:text-accent-light"
+            >
+              Ouvrir dans Google Photos <ExternalLink size={10} />
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
