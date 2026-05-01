@@ -299,6 +299,81 @@ export type HealthMetricFilters = {
   limit?: number
 }
 
+// Photos
+export type PhotoItem = {
+  id: string
+  media_id: string
+  filename: string | null
+  mime_type: string | null
+  creation_time: string
+  width: number | null
+  height: number | null
+  is_video: boolean
+  base_url: string | null
+  product_url: string | null
+}
+
+export type PhotosSyncResponse = {
+  ingested: number
+  updated: number
+  errors: number
+  duration_seconds: number
+}
+
+export type PhotosStatsResponse = {
+  total: number
+  photos: number
+  videos: number
+  total_pixels: number
+  by_year: { year: string; count: number }[]
+  by_camera: { camera: string; count: number }[]
+}
+
+export type PhotoFilters = {
+  since?: string
+  until?: string
+  is_video?: boolean
+  limit?: number
+  offset?: number
+}
+
+// Drive
+export type DriveFileItem = {
+  id: string
+  drive_id: string
+  name: string | null
+  mime_type: string
+  size_bytes: number | null
+  starred: boolean
+  is_shared: boolean
+  owner_email: string | null
+  modified_time: string | null
+  web_view_link: string | null
+}
+
+export type DriveSyncResponse = {
+  ingested: number
+  updated: number
+  errors: number
+  duration_seconds: number
+}
+
+export type DriveStatsResponse = {
+  total: number
+  starred: number
+  shared: number
+  total_size_bytes: number
+  by_mime: { mime_type: string; count: number }[]
+}
+
+export type DriveFilters = {
+  mime_type?: string
+  q?: string
+  starred?: boolean
+  limit?: number
+  offset?: number
+}
+
 // ============================================================================
 // Filters typés (alignés sur les query params de l'API)
 // ============================================================================
@@ -374,6 +449,34 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ message, history }),
       }),
+  },
+
+  photos: {
+    sync: (opts: { max_results?: number; user_email?: string } = {}) =>
+      request<PhotosSyncResponse>('/v1/photos/sync', {
+        method: 'POST',
+        body: JSON.stringify({
+          user_email: opts.user_email ?? 'marc.richard4@gmail.com',
+          max_results: opts.max_results ?? 2000,
+        }),
+      }),
+    list: (filters: PhotoFilters = {}) =>
+      request<PhotoItem[]>('/v1/photos' + qs(filters)),
+    stats: () => request<PhotosStatsResponse>('/v1/photos/stats'),
+  },
+
+  drive: {
+    sync: (opts: { max_results?: number; user_email?: string } = {}) =>
+      request<DriveSyncResponse>('/v1/drive/sync', {
+        method: 'POST',
+        body: JSON.stringify({
+          user_email: opts.user_email ?? 'marc.richard4@gmail.com',
+          max_results: opts.max_results ?? 2000,
+        }),
+      }),
+    files: (filters: DriveFilters = {}) =>
+      request<DriveFileItem[]>('/v1/drive/files' + qs(filters)),
+    stats: () => request<DriveStatsResponse>('/v1/drive/stats'),
   },
 
   calendar: {
