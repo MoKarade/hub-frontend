@@ -12,7 +12,7 @@
  */
 
 export type SearchScope = 'all' | 'finances' | 'locations' | 'emails' | 'photos' | 'calendar' | 'documents' | 'health'
-export type SearchMode = 'data' | 'web' | 'memory'
+export type SearchMode = 'data' | 'chat' | 'web' | 'memory'
 export type AIModel = 'qwen2.5:14b-instruct' | 'qwen2.5:7b' | 'llama3.3' | 'mistral'
 
 export interface SearchTurn {

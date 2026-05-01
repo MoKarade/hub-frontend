@@ -33,6 +33,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { BreachesAnalysis } from '@/components/breaches-analysis'
 
 const HIBP_API = 'https://api.pwnedpasswords.com/range'
 
@@ -378,6 +379,20 @@ export function BulkPasswordChecker() {
             <strong>Action recommandée :</strong> change tes mots de passe compromis en priorité ceux avec le plus de comptes affectés.{' '}
             <span className="text-ink-500">(Phase 5+ : bouton &laquo; Régénérer auto &raquo; qui crée un nouveau mdp + le sauvegarde dans ton gestionnaire.)</span>
           </div>
+        </div>
+      )}
+
+      {/* Cross-ref breaches : services dans des fuites publiques */}
+      {progress.done === progress.total && entries && entries.length > 0 && (
+        <div className="mt-6 pt-6 border-t border-ink-700/50">
+          <h3 className="text-sm font-semibold text-ink-100 mb-1">
+            Services dans des fuites publiques
+          </h3>
+          <p className="text-xs text-ink-400 mb-4">
+            Cross-ref des domaines de tes mdp avec la base HIBP des fuites historiques (~700 breaches).
+            Te dit quels services ont été compromis et quels types de tes données ont été exposées.
+          </p>
+          <BreachesAnalysis entries={entries.map((e) => ({ url: e.url, username: e.username }))} />
         </div>
       )}
     </div>

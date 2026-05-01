@@ -23,6 +23,7 @@ import {
   HardDrive,
   Brain,
   ChevronDown,
+  MessagesSquare,
 } from 'lucide-react'
 import { useState, useRef, useEffect, Suspense, useMemo } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
@@ -54,7 +55,8 @@ const SCOPES: { id: SearchScope; label: string }[] = [
 ]
 
 const MODES: { id: SearchMode; label: string; icon: typeof Globe; description: string }[] = [
-  { id: 'data', label: 'Mes data', icon: HardDrive, description: 'Cherche dans Postgres local' },
+  { id: 'data', label: 'Mes data', icon: HardDrive, description: 'Cherche dans Postgres local (génère SQL)' },
+  { id: 'chat', label: 'Discussion', icon: MessagesSquare, description: 'Discussion libre avec l\'IA, sans toucher la DB' },
   { id: 'web', label: 'Web', icon: Globe, description: 'Recherche internet (Phase 4+)' },
   { id: 'memory', label: 'Mémoire IA', icon: Brain, description: 'Conversations passées (Phase 4+)' },
 ]
@@ -234,7 +236,32 @@ function SearchInner() {
     setQuestion('')
 
     try {
-      const res = await api.ai.ask(trimmed)
+      let answer: string
+      let sql: string | null = null
+      let rows: Record<string, unknown>[] | null = null
+      let rowCount: number | null = null
+
+      if (mode === 'chat') {
+        // Mode discussion libre : pas de SQL/DB, juste LLM. Reconstruit l'historique
+        // depuis les turns precedents de la conversation active (10 dernier max).
+        const history = (activeConv?.turns ?? [])
+          .filter((t) => t.answer && !t.error)
+          .flatMap((t) => [
+            { role: 'user' as const, content: t.question },
+            { role: 'assistant' as const, content: t.answer ?? '' },
+          ])
+          .slice(-20)
+        const res = await api.ai.chat(trimmed, history)
+        answer = res.answer
+      } else {
+        // Mode data (defaut) : LLM -> SQL -> exec -> LLM -> reponse
+        const res = await api.ai.ask(trimmed)
+        answer = res.answer
+        sql = res.sql
+        rows = res.rows
+        rowCount = res.row_count
+      }
+
       const durationMs = Date.now() - startedAt
       convs = convs.map((c) =>
         c.id === convId
@@ -244,10 +271,10 @@ function SearchInner() {
                 t.id === turnId
                   ? {
                       ...t,
-                      answer: res.answer,
-                      sql: res.sql,
-                      rows: res.rows,
-                      rowCount: res.row_count,
+                      answer,
+                      sql,
+                      rows,
+                      rowCount,
                       durationMs,
                     }
                   : t

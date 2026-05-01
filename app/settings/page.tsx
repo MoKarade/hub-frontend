@@ -12,6 +12,7 @@ import { Sidebar } from '@/components/sidebar'
 import { HubStatus } from '@/components/hub-status'
 import { PasswordChecker } from '@/components/password-checker'
 import { BulkPasswordChecker } from '@/components/bulk-password-checker'
+import { PrivacyOsint } from '@/components/privacy-osint'
 import {
   Mail,
   Image as ImageIcon,
@@ -101,8 +102,28 @@ function SettingsContent() {
     <div className="space-y-6">
       <GoogleConnectionsSection />
       <SecuritySection />
+      <PrivacyOsintSection />
       <PreferencesSection />
     </div>
+  )
+}
+
+function PrivacyOsintSection() {
+  return (
+    <section>
+      <header className="mb-3 flex items-center gap-2">
+        <ShieldCheck size={18} className="text-accent" />
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">
+            Données personnelles exposées
+          </h2>
+          <p className="text-sm text-ink-400">
+            Vue complète de ce qui circule sur toi · email, photos, comptes, data brokers · 100% gratuit
+          </p>
+        </div>
+      </header>
+      <PrivacyOsint />
+    </section>
   )
 }
 

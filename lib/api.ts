@@ -231,6 +231,14 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ question }),
       }),
+    chat: (
+      message: string,
+      history: { role: 'user' | 'assistant'; content: string }[] = []
+    ) =>
+      request<{ answer: string; model: string }>('/v1/ai/chat', {
+        method: 'POST',
+        body: JSON.stringify({ message, history }),
+      }),
   },
 
   finance: {
