@@ -25,25 +25,45 @@ export class ApiError extends Error {
   }
 }
 
+// Timeout par defaut : certains endpoints (sync, picker import, enrich-gps,
+// AI ask) peuvent prendre 1-3 minutes. On utilise 5 min pour couvrir tout
+// sans laisser pendre indefiniment si hub-core est down.
+const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${getBaseUrl()}${path}`
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      // Header custom = simple-CSRF defense : toute requête CSRF cross-origin
-      // déclencherait un preflight OPTIONS, que le backend peut bloquer si
-      // l'origine n'est pas dans CORS_ALLOWED_ORIGINS.
-      'X-Hub-Client': 'web',
-      ...(init?.headers || {}),
-    },
-    credentials: 'include',
-  })
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new ApiError(res.status, `${res.status} ${res.statusText} on ${path}${text ? ' — ' + text.slice(0, 200) : ''}`)
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS)
+  try {
+    const res = await fetch(url, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        // Header custom = simple-CSRF defense : toute requête CSRF cross-origin
+        // déclencherait un preflight OPTIONS, que le backend peut bloquer si
+        // l'origine n'est pas dans CORS_ALLOWED_ORIGINS.
+        'X-Hub-Client': 'web',
+        ...(init?.headers || {}),
+      },
+      credentials: 'include',
+      signal: init?.signal ?? controller.signal,
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new ApiError(
+        res.status,
+        `${res.status} ${res.statusText} on ${path}${text ? ' — ' + text.slice(0, 200) : ''}`
+      )
+    }
+    return (await res.json()) as T
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new ApiError(0, `Timeout (${DEFAULT_TIMEOUT_MS / 1000}s) sur ${path}`)
+    }
+    throw err
+  } finally {
+    clearTimeout(timeoutId)
   }
-  return res.json() as Promise<T>
 }
 
 function qs(params: Record<string, unknown>): string {
