@@ -469,6 +469,27 @@ export const api = {
     list: (filters: PhotoFilters = {}) =>
       request<PhotoItem[]>('/v1/photos' + qs(filters)),
     stats: () => request<PhotosStatsResponse>('/v1/photos/stats'),
+    // Picker API (2025+) : nouveau workflow user-pick pour les apps non verifiees
+    pickerStart: () =>
+      request<{ session_id: string; picker_uri: string; expire_time: string | null }>(
+        '/v1/photos/picker/start',
+        { method: 'POST' }
+      ),
+    pickerStatus: (sessionId: string) =>
+      request<{
+        session_id: string
+        media_items_set: boolean
+        picker_uri: string | null
+        expire_time: string | null
+      }>(`/v1/photos/picker/status/${sessionId}`),
+    pickerImport: (sessionId: string) =>
+      request<{
+        session_id: string
+        ingested: number
+        updated: number
+        errors: number
+        duration_seconds: number
+      }>(`/v1/photos/picker/import/${sessionId}`, { method: 'POST' }),
   },
 
   drive: {

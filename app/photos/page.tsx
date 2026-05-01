@@ -26,13 +26,54 @@ export default function PhotosPage() {
   )
 
   async function handleSync() {
+    // Picker API : ouvre la fenetre Google Picker, l'user pick ses photos,
+    // on poll jusqu'a ce qu'il ait fini, puis on importe.
     setSyncing(true)
     try {
-      const res = await api.photos.sync({ max_results: 2000 })
-      toast.success(
-        `Sync OK · ${res.ingested} nouvelles, ${res.updated} màj`,
-        { description: `${res.duration_seconds}s` }
-      )
+      const session = await api.photos.pickerStart()
+      // Ouvre la picker UI dans un nouvel onglet
+      const pickerWin = window.open(session.picker_uri, '_blank', 'noopener,noreferrer')
+      if (!pickerWin) {
+        toast.error('Bloqueur de popup actif', {
+          description: 'Autorise les popups sur localhost:3000 puis ressaie',
+        })
+        setSyncing(false)
+        return
+      }
+      toast.success('Picker ouvert dans un nouvel onglet', {
+        description: 'Sélectionne tes photos puis click "Done". On polle ici.',
+      })
+
+      // Poll status toutes les 3s, max 10 minutes
+      let done = false
+      const startTime = Date.now()
+      while (!done && Date.now() - startTime < 600_000) {
+        await new Promise((res) => setTimeout(res, 3000))
+        try {
+          const status = await api.photos.pickerStatus(session.session_id)
+          if (status.media_items_set) {
+            done = true
+            break
+          }
+        } catch {
+          // Session expired or other error - break
+          break
+        }
+      }
+
+      if (!done) {
+        toast.error('Pas de sélection détectée après 10 min', {
+          description: 'Si tu as bien fini de picker, réessaie le bouton Sync.',
+        })
+        setSyncing(false)
+        return
+      }
+
+      // Import les media items pickes
+      const res = await api.photos.pickerImport(session.session_id)
+      toast.success(`Import OK · ${res.ingested} nouvelles, ${res.updated} màj`, {
+        description: `${res.duration_seconds}s`,
+      })
       void swrMutate('photos')
       void swrMutate('photos-stats')
     } catch (err) {
@@ -50,7 +91,7 @@ export default function PhotosPage() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Photos</h1>
             <p className="text-sm text-ink-400">
-              Métadonnées Google Photos · recherche sémantique = phase 3c+ avec CLIP
+              Google Photos via <strong>Picker API</strong> · sélection user → import direct
             </p>
           </div>
           <button
@@ -60,7 +101,7 @@ export default function PhotosPage() {
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-ink-950 text-xs font-semibold hover:bg-accent-light transition-colors disabled:opacity-50"
           >
             {syncing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-            {syncing ? 'Sync…' : 'Sync Photos'}
+            {syncing ? 'Picker…' : 'Picker Photos'}
           </button>
         </header>
 
