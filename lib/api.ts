@@ -180,6 +180,53 @@ export type OsintScanResponse = {
   hits: OsintHit[]
 }
 
+export type EmailListItem = {
+  id: string
+  gmail_id: string
+  thread_id: string
+  subject: string | null
+  sender: string
+  sender_email: string
+  sent_at: string
+  snippet: string | null
+  labels: string[]
+  has_attachments: boolean
+  is_unread: boolean
+  size_estimate: number | null
+}
+
+export type EmailDetail = EmailListItem & {
+  recipients: string[]
+  body_text: string | null
+  body_html: string | null
+}
+
+export type EmailSyncResponse = {
+  ingested: number
+  updated: number
+  errors: number
+  duration_seconds: number
+}
+
+export type EmailStatsResponse = {
+  total: number
+  unread: number
+  with_attachments: number
+  top_senders: { sender_email: string; count: number; last_seen: string | null }[]
+  by_month: { month: string; count: number }[]
+}
+
+export type EmailFilters = {
+  sender_email?: string
+  since?: string
+  until?: string
+  q?: string
+  label?: string
+  is_unread?: boolean
+  limit?: number
+  offset?: number
+}
+
 // ============================================================================
 // Filters typés (alignés sur les query params de l'API)
 // ============================================================================
@@ -255,6 +302,22 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ message, history }),
       }),
+  },
+
+  emails: {
+    sync: (opts: { max_results?: number; since_days?: number; user_email?: string } = {}) =>
+      request<EmailSyncResponse>('/v1/emails/sync', {
+        method: 'POST',
+        body: JSON.stringify({
+          user_email: opts.user_email ?? 'marc.richard4@gmail.com',
+          max_results: opts.max_results ?? 200,
+          since_days: opts.since_days ?? 30,
+        }),
+      }),
+    list: (filters: EmailFilters = {}) =>
+      request<EmailListItem[]>('/v1/emails' + qs(filters)),
+    get: (id: string) => request<EmailDetail>(`/v1/emails/${id}`),
+    stats: () => request<EmailStatsResponse>('/v1/emails/stats'),
   },
 
   osint: {
