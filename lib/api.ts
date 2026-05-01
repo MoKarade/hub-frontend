@@ -1,8 +1,29 @@
 // Client typed pour appeler hub-core depuis le frontend.
-// En dev : NEXT_PUBLIC_HUB_API_URL=http://localhost:8000 → direct sur :8000.
-// En prod via Caddy : (vide) → /api (réécrit par Caddy).
+//
+// Strategie RUNTIME (vs build-time env var) : on detecte l'hostname au moment
+// du fetch. Ca evite tous les problemes de NEXT_PUBLIC_* baking foireux
+// (BOM dans .env.local, env vars pas heritees, build cache, etc.).
+//
+// - localhost:3000 (dev) -> http://localhost:8000 (hub-core direct)
+// - hubperso.duckdns.org (prod) -> /api (Caddy proxy vers hub-core)
 
-const BASE_URL = process.env.NEXT_PUBLIC_HUB_API_URL || '/api'
+function getBaseUrl(): string {
+  // SSR ou contexte sans window : fallback dev local.
+  if (typeof window === 'undefined') {
+    return process.env.NEXT_PUBLIC_HUB_API_URL || 'http://localhost:8000'
+  }
+  // Override explicite via env (ex: build deploiement custom)
+  if (process.env.NEXT_PUBLIC_HUB_API_URL) {
+    return process.env.NEXT_PUBLIC_HUB_API_URL
+  }
+  // Detection runtime
+  const { protocol, hostname, host } = window.location
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'http://localhost:8000'
+  }
+  // Prod : on assume Caddy/nginx proxy /api/* vers hub-core
+  return `${protocol}//${host}/api`
+}
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -12,7 +33,7 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const url = `${BASE_URL}${path}`
+  const url = `${getBaseUrl()}${path}`
   const res = await fetch(url, {
     ...init,
     headers: {
@@ -733,7 +754,7 @@ export const api = {
   oauth: {
     /** URL absolue pour rediriger le browser (pas un fetch). */
     startUrl: (service: string) =>
-      `${BASE_URL}/v1/oauth/google/start?service=${encodeURIComponent(service)}`,
+      `${getBaseUrl()}/v1/oauth/google/start?service=${encodeURIComponent(service)}`,
     /** Liste les tokens OAuth en DB (jamais les valeurs en clair). */
     status: () => request<OAuthStatusResponse>('/v1/oauth/status'),
     /** Révoque le token d'un service. */
