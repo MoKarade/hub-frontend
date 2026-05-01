@@ -159,10 +159,21 @@ export default function PhotosPage() {
     setEnriching(true)
     try {
       const res = await api.photos.enrichGps({ max_photos: 100, do_geocode: true })
-      toast.success(
-        `Enrichissement OK · ${res.with_gps}/${res.processed} avec GPS · ${res.geocoded} géocodés`,
-        { description: `${res.duration_seconds}s` }
-      )
+      if (res.processed > 0 && res.with_gps === 0) {
+        toast.error(
+          `0 GPS trouvé sur ${res.processed} photos`,
+          {
+            description:
+              "Limitation Google : Picker API retire les GPS de l'EXIF (privacy). Pas de workaround coté hub.",
+            duration: 10000,
+          }
+        )
+      } else {
+        toast.success(
+          `Enrichissement OK · ${res.with_gps}/${res.processed} avec GPS · ${res.geocoded} géocodés`,
+          { description: `${res.duration_seconds}s` }
+        )
+      }
       void swrMutate(['photos', filterType, since, until])
     } catch (err) {
       toast.apiError(err, 'Enrichissement GPS échoué')
