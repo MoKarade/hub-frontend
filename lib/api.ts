@@ -376,6 +376,7 @@ export type DriveFileItem = {
   owner_email: string | null
   modified_time: string | null
   web_view_link: string | null
+  parents?: string | null
 }
 
 export type DriveSyncResponse = {
@@ -397,6 +398,7 @@ export type DriveFilters = {
   mime_type?: string
   q?: string
   starred?: boolean
+  parent_id?: string
   limit?: number
   offset?: number
 }
@@ -606,6 +608,7 @@ export const api = {
       }),
     files: (filters: DriveFilters = {}) =>
       request<DriveFileItem[]>('/v1/drive/files' + qs(filters)),
+    file: (driveId: string) => request<DriveFileItem>(`/v1/drive/file/${driveId}`),
     stats: () => request<DriveStatsResponse>('/v1/drive/stats'),
   },
 
@@ -648,7 +651,7 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ user_email: 'marc.richard4@gmail.com' }),
       }),
-    list: (filters: { q?: string; limit?: number } = {}) =>
+    list: (filters: { q?: string; sort?: 'name' | 'recent' | 'family'; limit?: number } = {}) =>
       request<ContactItem[]>('/v1/contacts' + qs(filters)),
     stats: () => request<ContactsStatsResponse>('/v1/contacts/stats'),
   },
@@ -659,9 +662,25 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ user_email: 'marc.richard4@gmail.com' }),
       }),
-    list: (filters: { completed?: boolean; limit?: number } = {}) =>
+    list: (filters: { completed?: boolean; tasklist_id?: string; limit?: number } = {}) =>
       request<TaskItem[]>('/v1/tasks' + qs(filters)),
+    lists: () =>
+      request<{ id: string; title: string | null; count: number }[]>('/v1/tasks/lists'),
     stats: () => request<TasksStatsResponse>('/v1/tasks/stats'),
+    toggle: (taskId: string, completed: boolean) =>
+      request<TaskItem>(`/v1/tasks/${taskId}/toggle`, {
+        method: 'POST',
+        body: JSON.stringify({ user_email: 'marc.richard4@gmail.com', completed }),
+      }),
+    create: (data: { tasklist_id: string; title: string; notes?: string; due_at?: string }) =>
+      request<TaskItem>('/v1/tasks/create', {
+        method: 'POST',
+        body: JSON.stringify({ user_email: 'marc.richard4@gmail.com', ...data }),
+      }),
+    remove: (taskId: string) =>
+      request<{ deleted: string }>(`/v1/tasks/${taskId}?user_email=marc.richard4@gmail.com`, {
+        method: 'DELETE',
+      }),
   },
 
   youtube: {

@@ -12,7 +12,7 @@ import {
   Building2,
   Cake,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import useSWR, { mutate as swrMutate } from 'swr'
 import { api, type ContactItem, type ContactsStatsResponse } from '@/lib/api'
 import { toast } from '@/lib/toast'
@@ -21,13 +21,25 @@ import { cn } from '@/lib/utils'
 export default function ContactsPage() {
   const [syncing, setSyncing] = useState(false)
   const [search, setSearch] = useState('')
+  const [sort, setSort] = useState<'name' | 'recent' | 'family'>('name')
+  const [hasEmail, setHasEmail] = useState(false)
+  const [hasPhone, setHasPhone] = useState(false)
   const { data: contacts } = useSWR<ContactItem[]>(
-    ['contacts', search],
-    () => api.contacts.list({ q: search.trim() || undefined, limit: 300 })
+    ['contacts', search, sort],
+    () => api.contacts.list({ q: search.trim() || undefined, sort, limit: 1000 })
   )
   const { data: stats } = useSWR<ContactsStatsResponse>('contacts-stats', () =>
     api.contacts.stats()
   )
+
+  const visible = useMemo(() => {
+    if (!contacts) return []
+    return contacts.filter((c) => {
+      if (hasEmail && c.emails.length === 0) return false
+      if (hasPhone && c.phones.length === 0) return false
+      return true
+    })
+  }, [contacts, hasEmail, hasPhone])
 
   async function handleSync() {
     setSyncing(true)
@@ -74,30 +86,72 @@ export default function ContactsPage() {
           </div>
         )}
 
-        <div className="relative mb-3">
-          <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-500" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Recherche par nom…"
-            className="w-full bg-ink-800 border border-ink-700 rounded-md pl-7 pr-3 py-1.5 text-xs focus:outline-none focus:border-accent/60"
-          />
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-500" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Recherche : nom, email, tél, organisation, ID…"
+              className="w-full bg-ink-800 border border-ink-700 rounded-md pl-7 pr-3 py-1.5 text-xs focus:outline-none focus:border-accent/60"
+            />
+          </div>
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as 'name' | 'recent' | 'family')}
+            className="bg-ink-800 border border-ink-700 rounded-md px-2 py-1.5 text-xs"
+          >
+            <option value="name">Trier : Prénom</option>
+            <option value="family">Trier : Nom famille</option>
+            <option value="recent">Trier : Récent</option>
+          </select>
+          <button
+            type="button"
+            onClick={() => setHasEmail((v) => !v)}
+            className={cn(
+              'px-2 py-1.5 rounded-md text-[11px] border',
+              hasEmail
+                ? 'bg-info/15 border-info/30 text-info'
+                : 'bg-ink-800 border-ink-700 text-ink-400'
+            )}
+          >
+            <Mail size={11} className="inline mr-1" /> Email
+          </button>
+          <button
+            type="button"
+            onClick={() => setHasPhone((v) => !v)}
+            className={cn(
+              'px-2 py-1.5 rounded-md text-[11px] border',
+              hasPhone
+                ? 'bg-accent/15 border-accent/30 text-accent'
+                : 'bg-ink-800 border-ink-700 text-ink-400'
+            )}
+          >
+            <Phone size={11} className="inline mr-1" /> Tél
+          </button>
+        </div>
+        <div className="text-[10px] font-mono text-ink-500 mb-1">
+          {visible.length} / {contacts?.length ?? 0} contacts
         </div>
 
         <div className="flex-1 min-h-0">
-          {contacts && contacts.length === 0 && (
+          {visible.length === 0 && (
             <div className="ga-card p-6 text-center">
               <Users size={24} className="text-ink-500 mx-auto mb-2" />
-              <div className="text-sm text-ink-300">Aucun contact</div>
-              <p className="text-xs text-ink-500 mt-1">
-                Click &laquo;&nbsp;Sync Contacts&nbsp;&raquo; pour importer
-              </p>
+              <div className="text-sm text-ink-300">
+                {contacts && contacts.length === 0 ? 'Aucun contact' : 'Aucun match'}
+              </div>
+              {contacts && contacts.length === 0 && (
+                <p className="text-xs text-ink-500 mt-1">
+                  Click &laquo;&nbsp;Sync Contacts&nbsp;&raquo; pour importer
+                </p>
+              )}
             </div>
           )}
-          {contacts && contacts.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              {contacts.map((c) => (
+          {visible.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-[60vh] overflow-y-auto pr-1">
+              {visible.map((c) => (
                 <ContactCard key={c.id} contact={c} />
               ))}
             </div>

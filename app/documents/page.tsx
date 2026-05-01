@@ -1,9 +1,15 @@
 'use client'
 
+/**
+ * /documents - Vue type Google Drive : navigation folders + breadcrumb +
+ * détail click sur fichier. Folders d'abord, files ensuite. Couleurs par type.
+ */
+
 import { Sidebar } from '@/components/sidebar'
 import { HubStatus } from '@/components/hub-status'
 import {
   FileText,
+  Folder,
   RefreshCw,
   Loader2,
   Search,
@@ -14,15 +20,22 @@ import {
   Image as ImageIcon,
   FileSpreadsheet,
   Presentation,
-  Folder,
   FileCode,
   FileVideo,
   FileAudio,
+  ChevronRight,
+  Home,
+  X,
+  Calendar,
   type LucideIcon,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import useSWR, { mutate as swrMutate } from 'swr'
-import { api, type DriveFileItem, type DriveStatsResponse } from '@/lib/api'
+import {
+  api,
+  type DriveFileItem,
+  type DriveStatsResponse,
+} from '@/lib/api'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 
@@ -34,6 +47,8 @@ interface CategoryDef {
   match: (mime: string, name?: string | null) => boolean
 }
 
+const FOLDER_MIME = 'application/vnd.google-apps.folder'
+
 const CATEGORIES: CategoryDef[] = [
   {
     id: 'doc',
@@ -43,7 +58,6 @@ const CATEGORIES: CategoryDef[] = [
     match: (m) =>
       m === 'application/vnd.google-apps.document' ||
       m === 'application/pdf' ||
-      m === 'application/msword' ||
       m.includes('wordprocessingml'),
   },
   {
@@ -52,9 +66,7 @@ const CATEGORIES: CategoryDef[] = [
     icon: FileSpreadsheet,
     color: 'text-data-positive',
     match: (m) =>
-      m === 'application/vnd.google-apps.spreadsheet' ||
-      m.includes('spreadsheetml') ||
-      m === 'text/csv',
+      m === 'application/vnd.google-apps.spreadsheet' || m.includes('spreadsheetml') || m === 'text/csv',
   },
   {
     id: 'slide',
@@ -71,61 +83,45 @@ const CATEGORIES: CategoryDef[] = [
     color: 'text-accent',
     match: (m) => m.startsWith('image/'),
   },
-  {
-    id: 'video',
-    label: 'Vidéos',
-    icon: FileVideo,
-    color: 'text-data-negative',
-    match: (m) => m.startsWith('video/'),
-  },
-  {
-    id: 'audio',
-    label: 'Audio',
-    icon: FileAudio,
-    color: 'text-purple-400',
-    match: (m) => m.startsWith('audio/'),
-  },
+  { id: 'video', label: 'Vidéos', icon: FileVideo, color: 'text-data-negative', match: (m) => m.startsWith('video/') },
+  { id: 'audio', label: 'Audio', icon: FileAudio, color: 'text-purple-400', match: (m) => m.startsWith('audio/') },
   {
     id: 'code',
     label: 'Code',
     icon: FileCode,
     color: 'text-info',
     match: (m, name) =>
-      m === 'text/x-python' ||
-      m === 'application/json' ||
-      m === 'text/javascript' ||
       Boolean(name?.match(/\.(py|js|ts|tsx|jsx|java|cpp|c|go|rs|rb|sh|ps1)$/i)),
-  },
-  {
-    id: 'folder',
-    label: 'Dossiers',
-    icon: Folder,
-    color: 'text-ink-300',
-    match: (m) => m === 'application/vnd.google-apps.folder',
   },
 ]
 
 function categorize(file: DriveFileItem): CategoryDef {
-  for (const cat of CATEGORIES) {
-    if (cat.match(file.mime_type, file.name)) return cat
+  if (file.mime_type === FOLDER_MIME) {
+    return { id: 'folder', label: 'Dossier', icon: Folder, color: 'text-warn', match: () => true }
   }
-  return {
-    id: 'other',
-    label: 'Autres',
-    icon: FileText,
-    color: 'text-ink-400',
-    match: () => true,
+  for (const c of CATEGORIES) {
+    if (c.match(file.mime_type, file.name)) return c
   }
+  return { id: 'other', label: 'Fichier', icon: FileText, color: 'text-ink-400', match: () => true }
 }
 
 export default function DocumentsPage() {
   const [syncing, setSyncing] = useState(false)
   const [search, setSearch] = useState('')
-  const [activeCategory, setActiveCategory] = useState<string | null>(null)
+  const [stack, setStack] = useState<{ id: string; name: string }[]>([
+    { id: 'root', name: 'Racine' },
+  ])
+  const [selected, setSelected] = useState<DriveFileItem | null>(null)
+  const current = stack[stack.length - 1]
 
   const { data: files } = useSWR<DriveFileItem[]>(
-    ['drive-files', search],
-    () => api.drive.files({ q: search.trim() || undefined, limit: 500 })
+    ['drive-files', current.id, search],
+    () =>
+      api.drive.files({
+        parent_id: search.trim() ? undefined : current.id,
+        q: search.trim() || undefined,
+        limit: 500,
+      })
   )
   const { data: stats } = useSWR<DriveStatsResponse>('drive-stats', () => api.drive.stats())
 
@@ -136,7 +132,7 @@ export default function DocumentsPage() {
       toast.success(`Sync OK · ${res.ingested} nouveaux, ${res.updated} màj`, {
         description: `${res.duration_seconds}s`,
       })
-      void swrMutate(['drive-files', search])
+      void swrMutate(['drive-files', current.id, search])
       void swrMutate('drive-stats')
     } catch (err) {
       toast.apiError(err, 'Sync Drive échoué')
@@ -145,44 +141,40 @@ export default function DocumentsPage() {
     }
   }
 
-  // Compte par categorie pour les pills
-  const byCategory = useMemo(() => {
-    const counts = new Map<string, { count: number; size: number }>()
-    for (const f of files ?? []) {
-      const cat = categorize(f)
-      const cur = counts.get(cat.id) ?? { count: 0, size: 0 }
-      counts.set(cat.id, {
-        count: cur.count + 1,
-        size: cur.size + (f.size_bytes ?? 0),
-      })
-    }
-    return counts
-  }, [files])
+  function enterFolder(f: DriveFileItem) {
+    setStack([...stack, { id: f.drive_id, name: f.name ?? '(sans nom)' }])
+    setSearch('')
+  }
 
-  const visibleFiles = useMemo(() => {
-    if (!files) return []
-    if (!activeCategory) return files
-    return files.filter((f) => categorize(f).id === activeCategory)
-  }, [files, activeCategory])
+  function jumpTo(idx: number) {
+    setStack(stack.slice(0, idx + 1))
+    setSearch('')
+  }
 
-  // Top 5 plus gros fichiers
-  const biggestFiles = useMemo(() => {
+  // Sort : folders d'abord, ensuite par modified desc
+  const sortedFiles = useMemo(() => {
     if (!files) return []
-    return [...files]
-      .filter((f) => f.size_bytes !== null)
-      .sort((a, b) => (b.size_bytes ?? 0) - (a.size_bytes ?? 0))
-      .slice(0, 5)
+    return [...files].sort((a, b) => {
+      const aFolder = a.mime_type === FOLDER_MIME
+      const bFolder = b.mime_type === FOLDER_MIME
+      if (aFolder !== bFolder) return aFolder ? -1 : 1
+      const at = a.modified_time ? new Date(a.modified_time).getTime() : 0
+      const bt = b.modified_time ? new Date(b.modified_time).getTime() : 0
+      return bt - at
+    })
   }, [files])
 
   return (
     <div className="flex min-h-screen">
       <Sidebar />
       <main className="flex-1 px-4 sm:px-6 lg:px-8 pt-16 lg:pt-6 pb-6 max-w-[1400px] flex flex-col">
-        <header className="mb-4 flex items-center justify-between gap-3 flex-wrap">
+        <header className="mb-3 flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Documents</h1>
-            <p className="text-sm text-ink-400">
-              Google Drive · catégorisé · recherche par nom
+            <h1 className="text-2xl font-semibold tracking-tight">Drive</h1>
+            <p className="text-xs text-ink-400">
+              {stats
+                ? `${stats.total} fichiers · ${(stats.total_size_bytes / 1_073_741_824).toFixed(2)} GB · ${stats.starred} étoilés`
+                : 'Chargement…'}
             </p>
           </div>
           <button
@@ -196,141 +188,75 @@ export default function DocumentsPage() {
           </button>
         </header>
 
-        {stats && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-            <Kpi label="Total" value={stats.total} icon={FileText} color="text-ink-100" />
-            <Kpi label="Étoilés" value={stats.starred} icon={Star} color="text-warn" />
-            <Kpi label="Partagés" value={stats.shared} icon={Users} color="text-info" />
-            <Kpi
-              label="Taille"
-              value={(stats.total_size_bytes / 1_073_741_824).toFixed(2)}
-              icon={HardDrive}
-              color="text-accent"
-              suffix="GB"
-            />
-          </div>
-        )}
-
-        {/* Top 5 plus gros */}
-        {biggestFiles.length > 0 && (
-          <div className="ga-card p-3 mb-3">
-            <div className="text-xs font-semibold text-ink-200 mb-2 flex items-center gap-1.5">
-              <HardDrive size={11} className="text-accent" />
-              Top 5 plus volumineux
-            </div>
-            <div className="space-y-1">
-              {biggestFiles.map((f) => {
-                const cat = categorize(f)
-                const Icon = cat.icon
-                const pctOfTotal =
-                  stats?.total_size_bytes && stats.total_size_bytes > 0
-                    ? ((f.size_bytes ?? 0) / stats.total_size_bytes) * 100
-                    : 0
-                return (
-                  <a
-                    key={f.id}
-                    href={f.web_view_link ?? '#'}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 hover:bg-ink-800/40 rounded px-1 py-1 transition-colors"
-                  >
-                    <Icon size={11} className={cn('shrink-0', cat.color)} />
-                    <span className="text-xs text-ink-200 truncate flex-1">
-                      {f.name ?? '(sans nom)'}
-                    </span>
-                    <div className="text-[10px] font-mono text-ink-500 shrink-0 w-20 text-right">
-                      {formatSize(f.size_bytes ?? 0)}
-                    </div>
-                    <div className="w-12 h-1 bg-ink-800 rounded overflow-hidden shrink-0">
-                      <div
-                        className="h-full bg-accent"
-                        style={{ width: `${Math.min(100, pctOfTotal)}%` }}
-                      />
-                    </div>
-                  </a>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Categories pills */}
-        {files && files.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            <button
-              type="button"
-              onClick={() => setActiveCategory(null)}
-              className={cn(
-                'inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] border transition-colors',
-                !activeCategory
-                  ? 'bg-accent/15 border-accent/30 text-accent'
-                  : 'bg-ink-800 border-ink-700 text-ink-300'
-              )}
-            >
-              Tous
-              <span className="font-mono text-[10px] text-ink-500">{files.length}</span>
-            </button>
-            {CATEGORIES.map((cat) => {
-              const data = byCategory.get(cat.id)
-              if (!data || data.count === 0) return null
-              const Icon = cat.icon
-              return (
+        {/* Breadcrumb + search */}
+        <div className="ga-card p-2 mb-3 flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-0.5 text-sm">
+            {stack.map((s, i) => (
+              <div key={`${s.id}-${i}`} className="flex items-center gap-0.5">
+                {i > 0 && <ChevronRight size={11} className="text-ink-600" />}
                 <button
-                  key={cat.id}
                   type="button"
-                  onClick={() => setActiveCategory(cat.id === activeCategory ? null : cat.id)}
+                  onClick={() => jumpTo(i)}
                   className={cn(
-                    'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] border transition-colors',
-                    cat.id === activeCategory
-                      ? 'bg-accent/15 border-accent/30 text-accent'
-                      : 'bg-ink-800 border-ink-700 text-ink-300 hover:text-ink-100'
+                    'inline-flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-ink-800 transition-colors max-w-[200px]',
+                    i === stack.length - 1 ? 'text-ink-100 font-semibold' : 'text-ink-400 hover:text-ink-200'
                   )}
                 >
-                  <Icon size={10} className={cat.color} />
-                  {cat.label}
-                  <span className="font-mono text-[10px] text-ink-500">{data.count}</span>
+                  {i === 0 && <Home size={10} />}
+                  <span className="truncate">{s.name}</span>
                 </button>
-              )
-            })}
+              </div>
+            ))}
           </div>
-        )}
-
-        <div className="relative mb-3">
-          <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-500" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Recherche par nom de fichier…"
-            className="w-full bg-ink-800 border border-ink-700 rounded-md pl-7 pr-3 py-1.5 text-xs focus:outline-none focus:border-accent/60"
-          />
+          <div className="flex-1" />
+          <div className="relative">
+            <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-ink-500" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Recherche globale…"
+              className="bg-ink-800 border border-ink-700 rounded-md pl-7 pr-2 py-1 text-xs w-56 focus:outline-none focus:border-accent/60"
+            />
+          </div>
         </div>
 
+        {/* Liste */}
         <div className="flex-1 min-h-0">
-          {visibleFiles.length === 0 && files && files.length === 0 && (
-            <div className="ga-card p-6 text-center">
-              <FileText size={24} className="text-ink-500 mx-auto mb-2" />
-              <div className="text-sm text-ink-300">Aucun fichier</div>
-              <p className="text-xs text-ink-500 mt-1">
-                Click &laquo;&nbsp;Sync Drive&nbsp;&raquo; pour importer
-              </p>
+          {sortedFiles.length === 0 && (
+            <div className="ga-card p-8 text-center">
+              <Folder size={32} className="text-ink-600 mx-auto mb-2" />
+              <div className="text-sm text-ink-400">Dossier vide</div>
+              <div className="text-xs text-ink-500 mt-1">
+                {search ? 'Aucun match. Affine ta recherche.' : 'Click "Sync Drive" pour importer.'}
+              </div>
             </div>
           )}
-          {visibleFiles.length > 0 && (
-            <div className="ga-card divide-y divide-ink-700/30 max-h-[60vh] overflow-y-auto">
-              {visibleFiles.slice(0, 200).map((f) => (
-                <FileRow key={f.id} file={f} />
-              ))}
-              {visibleFiles.length > 200 && (
-                <div className="px-3 py-2 text-[11px] text-ink-500 text-center">
-                  +{visibleFiles.length - 200} autres (affine la recherche pour voir)
-                </div>
-              )}
+          {sortedFiles.length > 0 && (
+            <div className="ga-card overflow-hidden">
+              <div className="grid grid-cols-12 px-3 py-1.5 border-b border-ink-700/50 text-[10px] uppercase tracking-wider text-ink-500 font-mono">
+                <div className="col-span-7">Nom</div>
+                <div className="col-span-2">Type</div>
+                <div className="col-span-2">Modifié</div>
+                <div className="col-span-1 text-right">Taille</div>
+              </div>
+              <div className="divide-y divide-ink-700/20 max-h-[60vh] overflow-y-auto">
+                {sortedFiles.map((f) => (
+                  <FileRow
+                    key={f.id}
+                    file={f}
+                    onEnter={() => enterFolder(f)}
+                    onSelect={() => setSelected(f)}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </div>
 
-        <div className="mt-auto pt-4">
+        {selected && <FileDetailModal file={selected} onClose={() => setSelected(null)} />}
+
+        <div className="mt-3">
           <HubStatus />
         </div>
       </main>
@@ -338,62 +264,144 @@ export default function DocumentsPage() {
   )
 }
 
-function Kpi({
-  label,
-  value,
-  icon: Icon,
-  color,
-  suffix,
+function FileRow({
+  file,
+  onEnter,
+  onSelect,
 }: {
-  label: string
-  value: number | string
-  icon: LucideIcon
-  color: string
-  suffix?: string
+  file: DriveFileItem
+  onEnter: () => void
+  onSelect: () => void
 }) {
+  const cat = categorize(file)
+  const Icon = cat.icon
+  const isFolder = file.mime_type === FOLDER_MIME
+  const sizeStr = file.size_bytes ? formatSize(file.size_bytes) : isFolder ? '' : 'Google'
+  const modStr = file.modified_time
+    ? new Date(file.modified_time).toLocaleDateString('fr-CA')
+    : '—'
+
   return (
-    <div className="ga-card p-3">
-      <div className="flex items-center gap-1.5 mb-1">
-        <Icon size={11} className={color} />
-        <div className="metric-label">{label}</div>
+    <div
+      role="button"
+      tabIndex={0}
+      onDoubleClick={isFolder ? onEnter : onSelect}
+      onClick={(e) => {
+        // Single click = open folder OR show detail
+        if (isFolder) onEnter()
+        else onSelect()
+      }}
+      className="grid grid-cols-12 items-center px-3 py-2 hover:bg-ink-800/40 transition-colors text-xs cursor-pointer"
+    >
+      <div className="col-span-7 flex items-center gap-2 min-w-0">
+        <Icon size={14} className={cn('shrink-0', cat.color)} />
+        <span className="text-ink-100 truncate">{file.name ?? '(sans nom)'}</span>
+        {file.starred && <Star size={10} className="text-warn shrink-0" />}
+        {file.is_shared && <Users size={10} className="text-info shrink-0" />}
       </div>
-      <div className={cn('metric truncate', color)}>
-        {typeof value === 'number' ? value.toLocaleString('fr-CA') : value}
-        {suffix && <span className="text-xs ml-0.5">{suffix}</span>}
+      <div className="col-span-2 text-ink-400 truncate">{cat.label}</div>
+      <div className="col-span-2 font-mono text-[11px] text-ink-500">{modStr}</div>
+      <div className="col-span-1 text-right font-mono text-[11px] text-ink-500">{sizeStr}</div>
+    </div>
+  )
+}
+
+function FileDetailModal({ file, onClose }: { file: DriveFileItem; onClose: () => void }) {
+  const cat = categorize(file)
+  const Icon = cat.icon
+  const sizeStr = file.size_bytes
+    ? formatSize(file.size_bytes)
+    : file.mime_type.startsWith('application/vnd.google-apps.')
+      ? 'Format Google'
+      : '—'
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-ink-950/80 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="ga-card max-w-lg w-full overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-4 border-b border-ink-700/50 flex items-start gap-3">
+          <div className={cn('w-12 h-12 rounded-lg bg-ink-800 border border-ink-700 flex items-center justify-center shrink-0', cat.color)}>
+            <Icon size={20} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-base font-semibold text-ink-100 break-words">
+              {file.name ?? '(sans nom)'}
+            </h2>
+            <div className="text-[11px] font-mono text-ink-500 mt-0.5">{cat.label}</div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded text-ink-400 hover:text-ink-100 hover:bg-ink-800"
+          >
+            <X size={13} />
+          </button>
+        </div>
+        <div className="p-4 space-y-2 text-xs">
+          <DetailRow icon={HardDrive} label="Taille" value={sizeStr} />
+          <DetailRow icon={FileText} label="Type MIME" value={file.mime_type} mono />
+          {file.modified_time && (
+            <DetailRow
+              icon={Calendar}
+              label="Modifié"
+              value={new Date(file.modified_time).toLocaleString('fr-CA')}
+            />
+          )}
+          {file.owner_email && <DetailRow icon={Users} label="Propriétaire" value={file.owner_email} />}
+          <div className="flex items-center gap-2 text-[11px] flex-wrap pt-1">
+            {file.starred && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-warn/15 text-warn border border-warn/30">
+                <Star size={9} /> Étoilé
+              </span>
+            )}
+            {file.is_shared && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-info/15 text-info border border-info/30">
+                <Users size={9} /> Partagé
+              </span>
+            )}
+          </div>
+        </div>
+        {file.web_view_link && (
+          <div className="px-4 pb-4">
+            <a
+              href={file.web_view_link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-ink-950 text-xs font-semibold hover:bg-accent-light"
+            >
+              Ouvrir sur Drive
+              <ExternalLink size={11} />
+            </a>
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-function FileRow({ file }: { file: DriveFileItem }) {
-  const cat = categorize(file)
-  const Icon = cat.icon
-  const sizeStr = file.size_bytes ? formatSize(file.size_bytes) : 'Google'
+function DetailRow({
+  icon: Icon,
+  label,
+  value,
+  mono,
+}: {
+  icon: LucideIcon
+  label: string
+  value: string
+  mono?: boolean
+}) {
   return (
-    <a
-      href={file.web_view_link ?? '#'}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="flex items-center gap-3 px-3 py-2 hover:bg-ink-800/40 transition-colors"
-    >
-      <div className={cn('shrink-0', cat.color)}>
-        <Icon size={14} />
-      </div>
+    <div className="flex items-start gap-2">
+      <Icon size={11} className="text-ink-500 mt-0.5 shrink-0" />
       <div className="flex-1 min-w-0">
-        <div className="flex items-baseline gap-2">
-          <span className="text-sm text-ink-200 truncate">{file.name ?? '(sans nom)'}</span>
-          {file.starred && <Star size={10} className="text-warn shrink-0" />}
-          {file.is_shared && <Users size={10} className="text-info shrink-0" />}
-        </div>
-        <div className="text-[11px] font-mono text-ink-500 truncate">
-          {cat.label} · {sizeStr}
-          {file.modified_time && (
-            <span> · modifié {new Date(file.modified_time).toLocaleDateString('fr-CA')}</span>
-          )}
-        </div>
+        <div className="text-[10px] uppercase tracking-wider text-ink-500">{label}</div>
+        <div className={cn('text-ink-200 break-words', mono && 'font-mono text-[11px]')}>{value}</div>
       </div>
-      <ExternalLink size={11} className="text-ink-500 shrink-0" />
-    </a>
+    </div>
   )
 }
 
