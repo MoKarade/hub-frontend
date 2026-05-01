@@ -1,27 +1,20 @@
 // Client typed pour appeler hub-core depuis le frontend.
 //
-// Strategie RUNTIME (vs build-time env var) : on detecte l'hostname au moment
-// du fetch. Ca evite tous les problemes de NEXT_PUBLIC_* baking foireux
-// (BOM dans .env.local, env vars pas heritees, build cache, etc.).
+// Strategie RUNTIME PURE : on detecte l'hostname dans window.location.
+// Aucune dependance a un env var de build (qui foire pour des raisons obscures).
 //
-// - localhost:3000 (dev) -> http://localhost:8000 (hub-core direct)
-// - hubperso.duckdns.org (prod) -> /api (Caddy proxy vers hub-core)
+// - localhost:3000 -> http://localhost:8000 (hub-core direct)
+// - autre hostname (deploiement futur) -> /api (Caddy proxy)
 
 function getBaseUrl(): string {
-  // SSR ou contexte sans window : fallback dev local.
-  if (typeof window === 'undefined') {
-    return process.env.NEXT_PUBLIC_HUB_API_URL || 'http://localhost:8000'
-  }
-  // Override explicite via env (ex: build deploiement custom)
-  if (process.env.NEXT_PUBLIC_HUB_API_URL) {
-    return process.env.NEXT_PUBLIC_HUB_API_URL
-  }
-  // Detection runtime
+  // Cote serveur (SSR/build) : fallback dev local hardcode.
+  if (typeof window === 'undefined') return 'http://localhost:8000'
+  // Cote client : detection runtime depuis window.location uniquement.
+  // Pas de process.env (le minifier le tree-shake n'importe comment).
   const { protocol, hostname, host } = window.location
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return 'http://localhost:8000'
   }
-  // Prod : on assume Caddy/nginx proxy /api/* vers hub-core
   return `${protocol}//${host}/api`
 }
 
