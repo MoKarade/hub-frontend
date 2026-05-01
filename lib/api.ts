@@ -288,7 +288,13 @@ export type HealthSummaryResponse = {
     metric: string
     count: number
     last_date: string | null
-    avg: number | null
+    last_value: number | null
+    avg_90d: number | null
+    max_90d: number | null
+    min_90d: number | null
+    avg_7d: number | null
+    avg_prev_7d: number | null
+    avg_30d: number | null
   }[]
 }
 
@@ -506,6 +512,10 @@ export const api = {
     metrics: (filters: HealthMetricFilters = {}) =>
       request<HealthMetricItem[]>('/v1/health-data/metrics' + qs(filters)),
     summary: () => request<HealthSummaryResponse>('/v1/health-data/summary'),
+    timeseries: (metric: string, days = 90) =>
+      request<{ date: string; value: number }[]>(
+        `/v1/health-data/timeseries?metric=${encodeURIComponent(metric)}&days=${days}`
+      ),
   },
 
   emails: {
