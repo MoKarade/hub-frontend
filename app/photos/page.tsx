@@ -31,15 +31,15 @@ export default function PhotosPage() {
     setSyncing(true)
     try {
       const session = await api.photos.pickerStart()
-      // Ouvre la picker UI dans un nouvel onglet
-      const pickerWin = window.open(session.picker_uri, '_blank', 'noopener,noreferrer')
-      if (!pickerWin) {
-        toast.error('Bloqueur de popup actif', {
-          description: 'Autorise les popups sur localhost:3000 puis ressaie',
-        })
-        setSyncing(false)
-        return
-      }
+      // Click programmatique sur un anchor : contourne les popup blockers
+      // (window.open() est bloque silencieusement par Chrome moderne).
+      const a = document.createElement('a')
+      a.href = session.picker_uri
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
       toast.success('Picker ouvert dans un nouvel onglet', {
         description: 'Sélectionne tes photos puis click "Done". On polle ici.',
       })

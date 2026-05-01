@@ -105,9 +105,42 @@ function categorize(file: DriveFileItem): CategoryDef {
   return { id: 'other', label: 'Fichier', icon: FileText, color: 'text-ink-400', match: () => true }
 }
 
+// Patterns de noms à cacher par défaut (artefacts code/build/sync)
+const NOISE_PATTERNS = [
+  /^__pycache__$/,
+  /^node_modules$/,
+  /^\.git$/,
+  /^\.next$/,
+  /^\.venv$/,
+  /^venv$/,
+  /^\.cache$/,
+  /\.dist-info$/,
+  /\.egg-info$/,
+  /^\.idea$/,
+  /^\.vscode$/,
+  /^dist$/,
+  /^build$/,
+  /^target$/,
+  /^Pods$/,
+  /^obj$/,
+  /^bin$/,
+  /^\.tox$/,
+  /^\.pytest_cache$/,
+  /^\.mypy_cache$/,
+  /^\.ruff_cache$/,
+]
+
+function isNoise(name: string | null): boolean {
+  if (!name) return false
+  // Hex hashes (git objects, build artifacts) : 2-40 chars hexa
+  if (/^[a-f0-9]{2}$/.test(name) || /^[a-f0-9]{32,}$/.test(name)) return true
+  return NOISE_PATTERNS.some((p) => p.test(name))
+}
+
 export default function DocumentsPage() {
   const [syncing, setSyncing] = useState(false)
   const [search, setSearch] = useState('')
+  const [hideNoise, setHideNoise] = useState(true)
   const [stack, setStack] = useState<{ id: string; name: string }[]>([
     { id: 'root', name: 'Racine' },
   ])
@@ -175,10 +208,12 @@ export default function DocumentsPage() {
     setSearch('')
   }
 
-  // Sort : folders d'abord, ensuite par modified desc
+  // Sort : folders d'abord, ensuite par modified desc + filtre noise
   const sortedFiles = useMemo(() => {
     if (!files) return []
-    return [...files].sort((a, b) => {
+    let list = files
+    if (hideNoise) list = list.filter((f) => !isNoise(f.name))
+    return [...list].sort((a, b) => {
       const aFolder = a.mime_type === FOLDER_MIME
       const bFolder = b.mime_type === FOLDER_MIME
       if (aFolder !== bFolder) return aFolder ? -1 : 1
@@ -186,6 +221,11 @@ export default function DocumentsPage() {
       const bt = b.modified_time ? new Date(b.modified_time).getTime() : 0
       return bt - at
     })
+  }, [files, hideNoise])
+
+  const noiseCount = useMemo(() => {
+    if (!files) return 0
+    return files.filter((f) => isNoise(f.name)).length
   }, [files])
 
   return (
@@ -244,6 +284,19 @@ export default function DocumentsPage() {
             ))}
           </div>
           <div className="flex-1" />
+          <button
+            type="button"
+            onClick={() => setHideNoise((v) => !v)}
+            className={cn(
+              'inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] border',
+              hideNoise
+                ? 'bg-accent/15 border-accent/30 text-accent'
+                : 'bg-ink-800 border-ink-700 text-ink-400'
+            )}
+            title={`${noiseCount} dossiers techniques détectés (cache, venv, .git, hashes...)`}
+          >
+            {hideNoise ? '🙈' : '👁'} Cacher techniques {noiseCount > 0 && `(${noiseCount})`}
+          </button>
           <div className="relative">
             <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-ink-500" />
             <input
