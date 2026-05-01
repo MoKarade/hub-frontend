@@ -380,6 +380,88 @@ export type DriveFilters = {
   offset?: number
 }
 
+// Contacts (People API)
+export type ContactItem = {
+  id: string
+  person_id: string
+  display_name: string | null
+  given_name: string | null
+  family_name: string | null
+  emails: string[]
+  phones: string[]
+  organizations: string[]
+  birthday: string | null
+  photo_url: string | null
+}
+
+export type ContactsSyncResponse = {
+  ingested: number
+  updated: number
+  errors: number
+  duration_seconds: number
+}
+
+export type ContactsStatsResponse = {
+  total: number
+  with_email: number
+  with_phone: number
+  with_organization: number
+}
+
+// Tasks (Google Tasks)
+export type TaskItem = {
+  id: string
+  task_id: string
+  tasklist_id: string
+  tasklist_title: string | null
+  title: string | null
+  notes: string | null
+  is_completed: boolean
+  due_at: string | null
+  completed_at: string | null
+}
+
+export type TasksSyncResponse = {
+  tasklists_synced: number
+  tasks_ingested: number
+  tasks_updated: number
+  errors: number
+  duration_seconds: number
+}
+
+export type TasksStatsResponse = {
+  total: number
+  pending: number
+  completed: number
+  overdue: number
+  by_tasklist: { tasklist: string; count: number }[]
+}
+
+// YouTube
+export type YTActivityItem = {
+  id: string
+  activity_id: string
+  activity_type: string
+  video_id: string | null
+  video_title: string | null
+  channel_title: string | null
+  thumbnail_url: string | null
+  published_at: string
+}
+
+export type YTSyncResponse = {
+  activities_ingested: number
+  activities_updated: number
+  errors: number
+  duration_seconds: number
+}
+
+export type YTStatsResponse = {
+  total: number
+  by_type: { type: string; count: number }[]
+  top_channels: { channel: string; count: number }[]
+}
+
 // ============================================================================
 // Filters typés (alignés sur les query params de l'API)
 // ============================================================================
@@ -537,6 +619,42 @@ export const api = {
       request<{ date: string; value: number }[]>(
         `/v1/health-data/timeseries?metric=${encodeURIComponent(metric)}&days=${days}`
       ),
+  },
+
+  contacts: {
+    sync: () =>
+      request<ContactsSyncResponse>('/v1/contacts/sync', {
+        method: 'POST',
+        body: JSON.stringify({ user_email: 'marc.richard4@gmail.com' }),
+      }),
+    list: (filters: { q?: string; limit?: number } = {}) =>
+      request<ContactItem[]>('/v1/contacts' + qs(filters)),
+    stats: () => request<ContactsStatsResponse>('/v1/contacts/stats'),
+  },
+
+  tasks: {
+    sync: () =>
+      request<TasksSyncResponse>('/v1/tasks/sync', {
+        method: 'POST',
+        body: JSON.stringify({ user_email: 'marc.richard4@gmail.com' }),
+      }),
+    list: (filters: { completed?: boolean; limit?: number } = {}) =>
+      request<TaskItem[]>('/v1/tasks' + qs(filters)),
+    stats: () => request<TasksStatsResponse>('/v1/tasks/stats'),
+  },
+
+  youtube: {
+    sync: (opts: { days_back?: number } = {}) =>
+      request<YTSyncResponse>('/v1/youtube/sync', {
+        method: 'POST',
+        body: JSON.stringify({
+          user_email: 'marc.richard4@gmail.com',
+          days_back: opts.days_back ?? 90,
+        }),
+      }),
+    activities: (filters: { activity_type?: string; limit?: number } = {}) =>
+      request<YTActivityItem[]>('/v1/youtube/activities' + qs(filters)),
+    stats: () => request<YTStatsResponse>('/v1/youtube/stats'),
   },
 
   emails: {
