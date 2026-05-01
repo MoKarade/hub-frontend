@@ -18,6 +18,8 @@ import {
   Trash2,
   X,
   Calendar,
+  Pencil,
+  Save,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import useSWR, { mutate as swrMutate } from 'swr'
@@ -221,6 +223,11 @@ export default function TasksPage() {
             onClose={() => setSelected(null)}
             onToggle={() => handleToggle(selected)}
             onDelete={() => handleDelete(selected)}
+            onUpdated={() => {
+              void swrMutate(['tasks', filter, activeList])
+              void swrMutate('tasks-stats')
+              setSelected(null)
+            }}
           />
         )}
 
@@ -448,13 +455,49 @@ function TaskDetailModal({
   onClose,
   onToggle,
   onDelete,
+  onUpdated,
 }: {
   task: TaskItem
   onClose: () => void
   onToggle: () => void
   onDelete: () => void
+  onUpdated: () => void
 }) {
   const color = colorFor(task.tasklist_id)
+  const [editing, setEditing] = useState(false)
+  const [title, setTitle] = useState(task.title ?? '')
+  const [notes, setNotes] = useState(task.notes ?? '')
+  const [due, setDue] = useState(
+    task.due_at ? task.due_at.slice(0, 10) : ''
+  )
+  const [saving, setSaving] = useState(false)
+
+  async function save() {
+    setSaving(true)
+    try {
+      const data: { title?: string; notes?: string; due_at?: string; clear_due?: boolean } = {}
+      if (title !== (task.title ?? '')) data.title = title
+      if (notes !== (task.notes ?? '')) data.notes = notes
+      const oldDue = task.due_at ? task.due_at.slice(0, 10) : ''
+      if (due !== oldDue) {
+        if (!due) data.clear_due = true
+        else data.due_at = new Date(due).toISOString()
+      }
+      if (Object.keys(data).length === 0) {
+        setEditing(false)
+        return
+      }
+      await api.tasks.update(task.task_id, data)
+      toast.success('Tâche modifiée')
+      onUpdated()
+      setEditing(false)
+    } catch (err) {
+      toast.apiError(err, 'Modification échouée')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 bg-ink-950/80 backdrop-blur-sm flex items-center justify-center p-4"
@@ -464,14 +507,24 @@ function TaskDetailModal({
         <div className="h-1" style={{ background: color }} />
         <div className="p-4">
           <div className="flex items-start justify-between gap-2 mb-3">
-            <h2
-              className={cn(
-                'text-base font-semibold flex-1',
-                task.is_completed ? 'line-through text-ink-500' : 'text-ink-100'
-              )}
-            >
-              {task.title || '(sans titre)'}
-            </h2>
+            {editing ? (
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="flex-1 bg-ink-800 border border-ink-700 rounded-md px-2 py-1 text-base focus:outline-none focus:border-accent/60"
+                autoFocus
+              />
+            ) : (
+              <h2
+                className={cn(
+                  'text-base font-semibold flex-1',
+                  task.is_completed ? 'line-through text-ink-500' : 'text-ink-100'
+                )}
+              >
+                {task.title || '(sans titre)'}
+              </h2>
+            )}
             <button
               type="button"
               onClick={onClose}
@@ -490,40 +543,99 @@ function TaskDetailModal({
                 {task.tasklist_title ?? '(sans liste)'}
               </span>
             </div>
-            {task.due_at && (
-              <div className="flex items-center gap-2 text-ink-300">
-                <Calendar size={11} className="text-ink-500" />
-                {new Date(task.due_at).toLocaleString('fr-CA')}
-              </div>
-            )}
-            {task.completed_at && (
+
+            <div className="flex items-center gap-2">
+              <Calendar size={11} className="text-ink-500" />
+              {editing ? (
+                <input
+                  type="date"
+                  value={due}
+                  onChange={(e) => setDue(e.target.value)}
+                  className="bg-ink-800 border border-ink-700 rounded px-1.5 py-0.5 text-xs"
+                />
+              ) : task.due_at ? (
+                <span className="text-ink-300">
+                  {new Date(task.due_at).toLocaleString('fr-CA')}
+                </span>
+              ) : (
+                <span className="text-ink-500 italic">Pas d&apos;échéance</span>
+              )}
+            </div>
+
+            {task.completed_at && !editing && (
               <div className="flex items-center gap-2 text-data-positive">
                 <CheckSquare size={11} />
                 Faite : {new Date(task.completed_at).toLocaleString('fr-CA')}
               </div>
             )}
-            {task.notes && (
+
+            {editing ? (
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={4}
+                placeholder="Notes…"
+                className="w-full bg-ink-800 border border-ink-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent/60 resize-none"
+              />
+            ) : task.notes ? (
               <div className="text-ink-300 whitespace-pre-wrap p-2 bg-ink-800/40 rounded">
                 {task.notes}
               </div>
-            )}
+            ) : null}
           </div>
 
           <div className="flex gap-2 mt-4">
-            <button
-              type="button"
-              onClick={onToggle}
-              className="flex-1 px-3 py-1.5 rounded-md bg-accent text-ink-950 text-xs font-semibold hover:bg-accent-light"
-            >
-              {task.is_completed ? 'Réouvrir' : 'Marquer faite'}
-            </button>
-            <button
-              type="button"
-              onClick={onDelete}
-              className="px-2.5 py-1.5 rounded-md bg-ink-800 border border-data-negative/40 text-data-negative hover:bg-data-negative/10 text-xs"
-            >
-              <Trash2 size={11} />
-            </button>
+            {editing ? (
+              <>
+                <button
+                  type="button"
+                  onClick={save}
+                  disabled={saving}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-ink-950 text-xs font-semibold hover:bg-accent-light disabled:opacity-50"
+                >
+                  {saving ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
+                  Enregistrer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditing(false)
+                    setTitle(task.title ?? '')
+                    setNotes(task.notes ?? '')
+                    setDue(task.due_at ? task.due_at.slice(0, 10) : '')
+                  }}
+                  className="px-3 py-1.5 rounded-md bg-ink-800 border border-ink-700 text-xs"
+                >
+                  Annuler
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={onToggle}
+                  className="flex-1 px-3 py-1.5 rounded-md bg-accent text-ink-950 text-xs font-semibold hover:bg-accent-light"
+                >
+                  {task.is_completed ? 'Réouvrir' : 'Marquer faite'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  className="px-2.5 py-1.5 rounded-md bg-ink-800 border border-ink-700 hover:border-ink-600 text-xs"
+                  title="Modifier"
+                >
+                  <Pencil size={11} />
+                </button>
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  className="px-2.5 py-1.5 rounded-md bg-ink-800 border border-data-negative/40 text-data-negative hover:bg-data-negative/10 text-xs"
+                  title="Supprimer"
+                >
+                  <Trash2 size={11} />
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

@@ -141,6 +141,30 @@ export default function DocumentsPage() {
     }
   }
 
+  async function handleClean() {
+    if (
+      !confirm(
+        'Supprimer tous les fichiers Drive locaux puis re-importer SEULEMENT tes fichiers ? (utile si la sync précédente avait des partages d\'autres comptes)'
+      )
+    )
+      return
+    setSyncing(true)
+    try {
+      await api.drive.wipe()
+      const res = await api.drive.sync({ max_results: 5000 })
+      toast.success(`Resync clean · ${res.ingested} fichiers de toi`, {
+        description: `${res.duration_seconds}s`,
+      })
+      setStack([{ id: 'root', name: 'Racine' }])
+      void swrMutate(['drive-files', current.id, search])
+      void swrMutate('drive-stats')
+    } catch (err) {
+      toast.apiError(err, 'Resync clean échoué')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   function enterFolder(f: DriveFileItem) {
     setStack([...stack, { id: f.drive_id, name: f.name ?? '(sans nom)' }])
     setSearch('')
@@ -177,15 +201,26 @@ export default function DocumentsPage() {
                 : 'Chargement…'}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={handleSync}
-            disabled={syncing}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-ink-950 text-xs font-semibold hover:bg-accent-light transition-colors disabled:opacity-50"
-          >
-            {syncing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-            {syncing ? 'Sync…' : 'Sync Drive'}
-          </button>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={handleSync}
+              disabled={syncing}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-ink-950 text-xs font-semibold hover:bg-accent-light transition-colors disabled:opacity-50"
+            >
+              {syncing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+              {syncing ? 'Sync…' : 'Sync Drive'}
+            </button>
+            <button
+              type="button"
+              onClick={handleClean}
+              disabled={syncing}
+              title="Vide la DB locale puis re-importe seulement TES fichiers (pas les partages)"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-ink-800 border border-ink-700 hover:border-warn/40 hover:text-warn text-xs disabled:opacity-50"
+            >
+              Resync clean
+            </button>
+          </div>
         </header>
 
         {/* Breadcrumb + search */}

@@ -603,6 +603,10 @@ export const api = {
       request<DriveFileItem[]>('/v1/drive/files' + qs(filters)),
     file: (driveId: string) => request<DriveFileItem>(`/v1/drive/file/${driveId}`),
     stats: () => request<DriveStatsResponse>('/v1/drive/stats'),
+    wipe: () =>
+      request<{ deleted: number }>('/v1/drive/wipe?user_email=marc.richard4@gmail.com', {
+        method: 'DELETE',
+      }),
   },
 
   calendar: {
@@ -668,6 +672,14 @@ export const api = {
     create: (data: { tasklist_id: string; title: string; notes?: string; due_at?: string }) =>
       request<TaskItem>('/v1/tasks/create', {
         method: 'POST',
+        body: JSON.stringify({ user_email: 'marc.richard4@gmail.com', ...data }),
+      }),
+    update: (
+      taskId: string,
+      data: { title?: string; notes?: string; due_at?: string; clear_due?: boolean }
+    ) =>
+      request<TaskItem>(`/v1/tasks/${taskId}/update`, {
+        method: 'PATCH',
         body: JSON.stringify({ user_email: 'marc.richard4@gmail.com', ...data }),
       }),
     remove: (taskId: string) =>
