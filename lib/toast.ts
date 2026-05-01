@@ -38,19 +38,33 @@ export const toast = {
     return sonnerToast.promise(promise, msgs)
   },
 
-  /** Helper pour les erreurs API. Affiche le status + message. */
+  /** Helper pour les erreurs API. Distingue serveur down vs erreur applicative. */
   apiError(err: unknown, fallback = 'Erreur inattendue') {
     let msg = fallback
+    let status = 0
     if (err instanceof Error) {
       msg = err.message
+      // ApiError exposes status as numeric prefix in message ("500 Internal Server Error on ...")
+      const match = msg.match(/^(\d{3})\s/)
+      if (match) status = parseInt(match[1], 10)
     } else if (typeof err === 'string') {
       msg = err
     }
+
+    // Vraiment "down" : pas de status (= no response received) OU TypeError fetch.
+    // Si status >= 400 : serveur OK, juste erreur applicative.
+    const isNetworkDown =
+      status === 0 && (msg.toLowerCase().includes('fetch') || msg.toLowerCase().includes('failed'))
+
     return sonnerToast.error(msg, {
       duration: 6000,
-      description: msg.includes('fetch') || msg.includes('Failed')
-        ? 'Le hub-core ne répond pas. Vérifie qu il est bien lancé.'
-        : undefined,
+      description: isNetworkDown
+        ? 'Le hub-core ne répond pas (serveur down).'
+        : status >= 500
+          ? 'Erreur côté serveur — check les logs hub-core'
+          : status >= 400
+            ? 'Erreur de requête — paramètres invalides ou ressource introuvable'
+            : undefined,
     })
   },
 
