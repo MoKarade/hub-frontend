@@ -234,98 +234,98 @@ function ServiceCard({
   const isRevoked = token?.revoked === true
 
   return (
-    <div className={cn(
-      'ga-card ga-card-hover p-4 transition-colors',
-      isConnected && 'border-data-positive/20',
-    )}>
-      <div className="flex items-start gap-3">
-        <div className={cn(
-          'w-10 h-10 rounded-lg border flex items-center justify-center shrink-0',
-          isConnected ? 'bg-data-positive/10 border-data-positive/30 text-data-positive' : 'bg-ink-800 border-ink-700 text-ink-400'
-        )}>
-          <Icon size={18} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <h3 className="text-sm font-semibold text-ink-100 truncate">{service.name}</h3>
-            <StatusBadge connected={isConnected} expired={isExpired} revoked={isRevoked} />
-          </div>
-          <p className="text-xs text-ink-400 leading-relaxed mb-3">{service.description}</p>
-
-          {token && (
-            <div className="text-[10px] text-ink-500 font-mono mb-3 space-y-0.5">
-              <div className="truncate">📧 {token.user_email}</div>
-              <div>🔑 {token.scopes.length} scope{token.scopes.length > 1 ? 's' : ''} accordé{token.scopes.length > 1 ? 's' : ''}</div>
-              <div>⏱ Expire : {new Date(token.expires_at).toLocaleString('fr-CA')}</div>
-            </div>
-          )}
-
-          <div className="flex gap-2 flex-wrap">
-            {!isConnected ? (
-              <button
-                type="button"
-                onClick={onConnect}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-ink-950 text-xs font-semibold hover:bg-accent-light transition-colors"
-              >
-                <Link2 size={12} />
-                Connecter
-              </button>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={onConnect}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-ink-800 border border-ink-700 hover:border-ink-600 text-xs text-ink-300 transition-colors"
-                  title="Re-consent (refresh tokens)"
-                >
-                  <Link2 size={12} />
-                  Re-connecter
-                </button>
-                <button
-                  type="button"
-                  onClick={onRevoke}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-ink-800 border border-ink-700 hover:border-data-negative/40 hover:text-data-negative text-xs text-ink-400 transition-colors"
-                >
-                  <Unlink size={12} />
-                  Révoquer
-                </button>
-              </>
-            )}
-          </div>
-        </div>
+    <div
+      className={cn(
+        'flex items-center gap-3 p-3 rounded-lg border transition-colors',
+        isConnected
+          ? 'border-data-positive/30 bg-data-positive/5'
+          : 'border-ink-700/50 hover:border-ink-700 bg-ink-900/40'
+      )}
+    >
+      <div
+        className={cn(
+          'w-9 h-9 rounded-lg border flex items-center justify-center shrink-0',
+          isConnected
+            ? 'bg-data-positive/10 border-data-positive/30 text-data-positive'
+            : 'bg-ink-800 border-ink-700 text-ink-400'
+        )}
+      >
+        <Icon size={15} />
       </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-semibold text-ink-100 truncate">{service.name}</div>
+        <StatusLine token={token} isConnected={isConnected} isExpired={isExpired} isRevoked={isRevoked} />
+      </div>
+      {!isConnected ? (
+        <button
+          type="button"
+          onClick={onConnect}
+          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-accent text-ink-950 text-xs font-semibold hover:bg-accent-light transition-colors shrink-0"
+        >
+          <Link2 size={11} />
+          Connecter
+        </button>
+      ) : (
+        <div className="flex gap-1 shrink-0">
+          <button
+            type="button"
+            onClick={onConnect}
+            title="Re-connecter (refresh tokens)"
+            className="inline-flex items-center justify-center w-7 h-7 rounded-md text-ink-400 hover:text-ink-200 hover:bg-ink-800 transition-colors"
+            aria-label="Re-connecter"
+          >
+            <Link2 size={12} />
+          </button>
+          <button
+            type="button"
+            onClick={onRevoke}
+            title="Révoquer"
+            className="inline-flex items-center justify-center w-7 h-7 rounded-md text-ink-400 hover:text-data-negative hover:bg-data-negative/10 transition-colors"
+            aria-label="Révoquer"
+          >
+            <Unlink size={12} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }
 
-function StatusBadge({ connected, expired, revoked }: { connected: boolean; expired: boolean; revoked: boolean }) {
-  if (revoked) {
+function StatusLine({
+  token,
+  isConnected,
+  isExpired,
+  isRevoked,
+}: {
+  token: OAuthStatusItem | undefined
+  isConnected: boolean
+  isExpired: boolean
+  isRevoked: boolean
+}) {
+  if (isRevoked) {
     return (
-      <span className="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-data-negative/10 text-data-negative border border-data-negative/30 inline-flex items-center gap-1">
-        <XCircle size={10} /> Révoqué
-      </span>
+      <div className="text-[10px] font-mono text-data-negative flex items-center gap-1 mt-0.5">
+        <XCircle size={9} />
+        Révoqué
+      </div>
     )
   }
-  if (connected) {
+  if (isExpired) {
     return (
-      <span className="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-data-positive/10 text-data-positive border border-data-positive/30 inline-flex items-center gap-1">
-        <CheckCircle2 size={10} /> Connecté
-      </span>
+      <div className="text-[10px] font-mono text-warn mt-0.5">Expiré · re-connecter</div>
     )
   }
-  if (expired) {
+  if (isConnected && token) {
     return (
-      <span className="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-warn/10 text-warn border border-warn/30 inline-flex items-center gap-1">
-        Expiré
-      </span>
+      <div className="text-[10px] font-mono text-data-positive flex items-center gap-1 mt-0.5">
+        <CheckCircle2 size={9} />
+        {token.scopes.length} scope{token.scopes.length > 1 ? 's' : ''}
+      </div>
     )
   }
-  return (
-    <span className="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-ink-800 text-ink-500 border border-ink-700">
-      Non connecté
-    </span>
-  )
+  return null
 }
+
 
 function PreferencesSection() {
   return (

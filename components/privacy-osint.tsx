@@ -9,7 +9,7 @@
  * Plus 6 quick-links opt-out verifies pour les data brokers majeurs.
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   ExternalLink,
   Mail,
@@ -24,9 +24,13 @@ import {
   X,
   Trash2,
   FileX,
+  Loader2,
+  Play,
+  AlertTriangle,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { api, ApiError, type OsintScanResponse } from '@/lib/api'
 
 // ============================================================================
 // Verified opt-out URLs (octobre 2026) - 6 plus gros brokers seulement
@@ -392,12 +396,211 @@ const OSINT_TOOLS: OsintTool[] = [
 function OsintPanel({ onClose }: { onClose: () => void }) {
   return (
     <PanelWrap icon={Server} title="Outils OSINT" color="data-negative" onClose={onClose}>
-      <div className="space-y-1">
-        {OSINT_TOOLS.map((t) => (
-          <OsintRow key={t.name} tool={t} />
-        ))}
+      <LiveOsintScanner />
+      <div className="mt-3 pt-3 border-t border-ink-700/50">
+        <div className="text-[10px] font-mono text-ink-500 uppercase tracking-wider mb-2">
+          Aussi en CLI
+        </div>
+        <div className="space-y-1">
+          {OSINT_TOOLS.map((t) => (
+            <OsintRow key={t.name} tool={t} />
+          ))}
+        </div>
       </div>
     </PanelWrap>
+  )
+}
+
+function LiveOsintScanner() {
+  const [status, setStatus] = useState<{ holehe: boolean; sherlock: boolean } | null>(null)
+  const [tool, setTool] = useState<'holehe' | 'sherlock'>('holehe')
+  const [input, setInput] = useState('')
+  const [scanning, setScanning] = useState(false)
+  const [result, setResult] = useState<OsintScanResponse | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    api.osint
+      .status()
+      .then((s) => {
+        if (!cancelled) setStatus({ holehe: s.holehe_installed, sherlock: s.sherlock_installed })
+      })
+      .catch(() => {
+        if (!cancelled) setStatus({ holehe: false, sherlock: false })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function runScan() {
+    if (!input.trim()) return
+    setScanning(true)
+    setError(null)
+    setResult(null)
+    try {
+      const res =
+        tool === 'holehe'
+          ? await api.osint.holehe(input.trim())
+          : await api.osint.sherlock(input.trim())
+      setResult(res)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : String(err))
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  if (!status) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-ink-400">
+        <Loader2 size={11} className="animate-spin" />
+        Vérif des outils installés…
+      </div>
+    )
+  }
+
+  if (!status.holehe && !status.sherlock) {
+    return (
+      <div className="text-[11px] text-ink-400 leading-relaxed flex items-start gap-2 p-2 rounded-md border border-warn/20 bg-warn/5">
+        <AlertTriangle size={11} className="text-warn shrink-0 mt-0.5" />
+        <div>
+          Pour scan auto, installe Holehe ou Sherlock (commandes ci-dessous).
+          Une fois installés, recharge cette page.
+        </div>
+      </div>
+    )
+  }
+
+  const placeholder = tool === 'holehe' ? 'ton@email.com' : 'ton_username'
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-1">
+        <button
+          type="button"
+          onClick={() => {
+            setTool('holehe')
+            setResult(null)
+            setError(null)
+          }}
+          disabled={!status.holehe}
+          className={cn(
+            'flex-1 px-2.5 py-1.5 rounded-md text-[11px] font-medium border transition-colors',
+            tool === 'holehe'
+              ? 'bg-accent/15 border-accent/30 text-accent'
+              : 'bg-ink-800 border-ink-700 text-ink-400 hover:text-ink-200',
+            !status.holehe && 'opacity-30 cursor-not-allowed'
+          )}
+        >
+          <Mail size={10} className="inline mr-1" />
+          Holehe (email)
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setTool('sherlock')
+            setResult(null)
+            setError(null)
+          }}
+          disabled={!status.sherlock}
+          className={cn(
+            'flex-1 px-2.5 py-1.5 rounded-md text-[11px] font-medium border transition-colors',
+            tool === 'sherlock'
+              ? 'bg-accent/15 border-accent/30 text-accent'
+              : 'bg-ink-800 border-ink-700 text-ink-400 hover:text-ink-200',
+            !status.sherlock && 'opacity-30 cursor-not-allowed'
+          )}
+        >
+          <Globe size={10} className="inline mr-1" />
+          Sherlock (username)
+        </button>
+      </div>
+
+      <div className="flex gap-1">
+        <input
+          type={tool === 'holehe' ? 'email' : 'text'}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !scanning) {
+              e.preventDefault()
+              void runScan()
+            }
+          }}
+          placeholder={placeholder}
+          disabled={scanning}
+          className="flex-1 bg-ink-800 border border-ink-700 rounded-md px-2 py-1.5 text-xs focus:outline-none focus:border-accent/60 disabled:opacity-50"
+        />
+        <button
+          type="button"
+          onClick={() => void runScan()}
+          disabled={scanning || !input.trim()}
+          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-accent text-ink-950 text-xs font-semibold hover:bg-accent-light transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          {scanning ? <Loader2 size={11} className="animate-spin" /> : <Play size={11} />}
+          {scanning ? 'Scan…' : 'Scan'}
+        </button>
+      </div>
+
+      {error && (
+        <div className="text-[11px] text-data-negative bg-data-negative/5 border border-data-negative/30 rounded p-2">
+          {error}
+        </div>
+      )}
+
+      {result && <OsintResults result={result} />}
+    </div>
+  )
+}
+
+function OsintResults({ result }: { result: OsintScanResponse }) {
+  const found = result.hits.filter((h) => h.status === 'found')
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-3 gap-1.5 text-center">
+        <Stat label="Vérifiés" value={result.total_checked} color="text-ink-300" />
+        <Stat label="Trouvés" value={found.length} color="text-data-negative" />
+        <Stat label="Durée" value={`${result.duration_seconds}s`} color="text-ink-400" />
+      </div>
+      {found.length > 0 ? (
+        <div className="max-h-48 overflow-y-auto space-y-0.5 -mx-1 px-1">
+          {found.map((h) => (
+            <div
+              key={h.service}
+              className="flex items-center gap-2 px-2 py-1 rounded bg-data-negative/5 border border-data-negative/20 text-[11px]"
+            >
+              <span className="flex-1 truncate text-ink-200">{h.service}</span>
+              {h.url && (
+                <a
+                  href={h.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-ink-500 hover:text-accent shrink-0"
+                  title={h.url}
+                >
+                  <ExternalLink size={10} />
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-[11px] text-ink-500 text-center py-2">
+          Aucun service trouvé pour <code className="text-ink-300">{result.target}</code>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Stat({ label, value, color }: { label: string; value: string | number; color: string }) {
+  return (
+    <div className="px-2 py-1 rounded bg-ink-800/40">
+      <div className={cn('text-sm font-mono font-semibold', color)}>{value}</div>
+      <div className="text-[9px] uppercase tracking-wider text-ink-500">{label}</div>
+    </div>
   )
 }
 

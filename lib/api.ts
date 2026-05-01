@@ -164,6 +164,22 @@ export type PingResponse = {
   sample_response: string | null
 }
 
+export type OsintHit = {
+  service: string
+  url: string | null
+  status: 'found' | 'not_found' | 'rate_limited' | 'error'
+  extra?: Record<string, string>
+}
+
+export type OsintScanResponse = {
+  tool: 'holehe' | 'sherlock'
+  target: string
+  duration_seconds: number
+  total_checked: number
+  found_count: number
+  hits: OsintHit[]
+}
+
 // ============================================================================
 // Filters typés (alignés sur les query params de l'API)
 // ============================================================================
@@ -238,6 +254,25 @@ export const api = {
       request<{ answer: string; model: string }>('/v1/ai/chat', {
         method: 'POST',
         body: JSON.stringify({ message, history }),
+      }),
+  },
+
+  osint: {
+    status: () =>
+      request<{
+        holehe_installed: boolean
+        sherlock_installed: boolean
+        install_instructions: Record<string, string>
+      }>('/v1/osint/status'),
+    holehe: (email: string) =>
+      request<OsintScanResponse>('/v1/osint/holehe', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      }),
+    sherlock: (username: string) =>
+      request<OsintScanResponse>('/v1/osint/sherlock', {
+        method: 'POST',
+        body: JSON.stringify({ username }),
       }),
   },
 
