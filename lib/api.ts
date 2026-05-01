@@ -227,6 +227,78 @@ export type EmailFilters = {
   offset?: number
 }
 
+// Calendar
+export type CalEventItem = {
+  id: string
+  gcal_id: string
+  calendar_id: string
+  summary: string | null
+  location: string | null
+  start_at: string
+  end_at: string
+  all_day: boolean
+  organizer_email: string | null
+  attendees: string[]
+  status: string | null
+  html_link: string | null
+}
+
+export type CalSyncResponse = {
+  calendars_synced: number
+  events_ingested: number
+  events_updated: number
+  errors: number
+  duration_seconds: number
+}
+
+export type CalStatsResponse = {
+  total: number
+  upcoming: number
+  past_30d: number
+  by_calendar: { calendar_id: string; count: number }[]
+}
+
+export type CalEventFilters = {
+  since?: string
+  until?: string
+  q?: string
+  limit?: number
+  offset?: number
+}
+
+// Health data
+export type HealthMetricItem = {
+  id: string
+  date: string
+  metric: string
+  value: number
+  source: string
+}
+
+export type HealthSyncResponse = {
+  metrics_ingested: number
+  metrics_updated: number
+  errors: number
+  duration_seconds: number
+}
+
+export type HealthSummaryResponse = {
+  total_datapoints: number
+  by_metric: {
+    metric: string
+    count: number
+    last_date: string | null
+    avg: number | null
+  }[]
+}
+
+export type HealthMetricFilters = {
+  metric?: string
+  since?: string
+  until?: string
+  limit?: number
+}
+
 // ============================================================================
 // Filters typés (alignés sur les query params de l'API)
 // ============================================================================
@@ -302,6 +374,35 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ message, history }),
       }),
+  },
+
+  calendar: {
+    sync: (opts: { days_back?: number; days_forward?: number; user_email?: string } = {}) =>
+      request<CalSyncResponse>('/v1/calendar/sync', {
+        method: 'POST',
+        body: JSON.stringify({
+          user_email: opts.user_email ?? 'marc.richard4@gmail.com',
+          days_back: opts.days_back ?? 365,
+          days_forward: opts.days_forward ?? 180,
+        }),
+      }),
+    events: (filters: CalEventFilters = {}) =>
+      request<CalEventItem[]>('/v1/calendar/events' + qs(filters)),
+    stats: () => request<CalStatsResponse>('/v1/calendar/stats'),
+  },
+
+  healthData: {
+    sync: (opts: { days_back?: number; user_email?: string } = {}) =>
+      request<HealthSyncResponse>('/v1/health-data/sync', {
+        method: 'POST',
+        body: JSON.stringify({
+          user_email: opts.user_email ?? 'marc.richard4@gmail.com',
+          days_back: opts.days_back ?? 90,
+        }),
+      }),
+    metrics: (filters: HealthMetricFilters = {}) =>
+      request<HealthMetricItem[]>('/v1/health-data/metrics' + qs(filters)),
+    summary: () => request<HealthSummaryResponse>('/v1/health-data/summary'),
   },
 
   emails: {
