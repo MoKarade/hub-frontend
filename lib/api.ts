@@ -189,6 +189,55 @@ export type LocationPoint = {
   created_at: string
 }
 
+export type LocationVisit = {
+  id: string
+  start_time: string
+  end_time: string
+  lat: string
+  lng: string
+  semantic_type: string | null
+  place_id: string | null
+  probability: number | null
+  tz_offset_minutes: number | null
+  source: string
+  created_at: string
+}
+
+export type LocationStats = {
+  total_visits: number
+  unique_places: number
+  home_visits: number
+  work_visits: number
+  earliest_date: string | null
+  latest_date: string | null
+  total_path_points: number
+  total_activities: number
+}
+
+export type LocationIngestResponse = {
+  visits_inserted: number
+  visits_skipped: number
+  points_inserted: number
+  points_skipped: number
+  activities_inserted: number
+  activities_skipped: number
+  segments_total: number
+  duration_seconds: number
+  format_detected: string
+}
+
+export type LocationVisitFilters = {
+  start_date?: string
+  end_date?: string
+  semantic_type?: string
+  min_lat?: number
+  max_lat?: number
+  min_lng?: number
+  max_lng?: number
+  limit?: number
+  offset?: number
+}
+
 export type ReadyResponse = {
   status: 'ok' | 'degraded'
   checks: Record<string, { status: string; [key: string]: unknown }>
@@ -823,6 +872,16 @@ export const api = {
         request<LocationPoint[]>('/v1/locations/points' + qs(filters)),
       get: (id: string) => request<LocationPoint>(`/v1/locations/points/${id}`),
     },
+    visits: {
+      list: (filters: LocationVisitFilters = {}) =>
+        request<LocationVisit[]>('/v1/locations/visits' + qs(filters)),
+    },
+    stats: () => request<LocationStats>('/v1/locations/stats'),
+    ingestFile: (filePath: string) =>
+      request<LocationIngestResponse>('/v1/locations/ingest-file', {
+        method: 'POST',
+        body: JSON.stringify({ file_path: filePath }),
+      }),
   },
 
   security: {
