@@ -8,6 +8,7 @@ import {
   Map as MapIcon, Globe, Calendar, TrendingUp, RefreshCw, Upload, Layers,
   Sparkles, Settings, CheckCircle, Clock, Ruler, BarChart3, Compass, Flame,
   Zap, Activity, Satellite, Trophy, Award, AlertTriangle, Crosshair,
+  Maximize2, Minimize2, Loader2,
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -19,7 +20,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ClickPopup } from '@/components/locations/click-popup'
 import { JourneeTab } from '@/components/locations/journee-tab'
 import { VoyagesTab } from '@/components/locations/voyages-tab'
+import { BatchGeocodeButton } from '@/components/locations/batch-geocode'
 import type { MapMode, TileStyle } from '@/components/location-map'
+import { buildAddressLookup } from '@/lib/addresses'
 
 const LocationMap = dynamic(
   () => import('@/components/location-map').then(m => ({ default: m.LocationMap })),
@@ -220,6 +223,7 @@ function CarteTab({ latestDate, earliestDate }: { latestDate: string | null; ear
   const [tileStyle, setTileStyle] = useState<TileStyle>('dark')
   const [useCluster, setUseCluster] = useState(true)
   const [semanticFilter, setSemanticFilter] = useState<string | null>(null)
+  const [fullscreen, setFullscreen]         = useState(false)
 
   const setPreset = useCallback((preset: 'all' | '1M' | '3M' | '6M' | '1Y') => {
     setEndDate(safeEnd)
@@ -258,6 +262,14 @@ function CarteTab({ latestDate, earliestDate }: { latestDate: string | null; ear
   const isLoading = mode === 'visits' ? visitsLoading : pointsLoading
   const count = mode === 'visits' ? (visits?.length ?? 0) : (points?.length ?? 0)
   const isFullRange = startDate === safeStart && endDate === safeEnd
+
+  // Index global des adresses geocodees (cache SWR partage)
+  const { data: addressesData } = useSWR('addresses-index', () => api.locations.addresses(),
+    { revalidateOnFocus: false })
+  const addressLookup = useMemo(
+    () => addressesData ? buildAddressLookup(addressesData.addresses) : undefined,
+    [addressesData]
+  )
 
   return (
     <div className="flex flex-col gap-3 flex-1">
@@ -329,7 +341,12 @@ function CarteTab({ latestDate, earliestDate }: { latestDate: string | null; ear
       </div>
 
       {/* Carte + click popup */}
-      <div className="panel overflow-hidden flex-1 min-h-[560px] relative">
+      <div className={cn(
+          'panel overflow-hidden relative transition-all',
+          fullscreen
+            ? 'fixed inset-0 z-[2000] rounded-none border-0'
+            : 'flex-1 min-h-[560px]'
+      )}>
         {isLoading && (
           <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[600] panel px-3 py-1.5 text-[11px] font-mono text-ink-300 border-accent/30 flex items-center gap-1.5">
             <RefreshCw size={11} className="animate-spin" />
@@ -353,13 +370,13 @@ function CarteTab({ latestDate, earliestDate }: { latestDate: string | null; ear
           </div>
         )}
 
-        {/* Hint click */}
-        {!clickPos && (
-          <div className="absolute top-2 right-2 z-[600] panel px-3 py-1.5 text-[10px] font-mono text-ink-400 border-ink-700/50 pointer-events-none flex items-center gap-1.5">
-            <Zap size={10} className="text-accent" />
-            Clique sur la carte
-          </div>
-        )}
+        {/* Fullscreen toggle — top right */}
+        <button onClick={() => setFullscreen(!fullscreen)}
+          title={fullscreen ? 'Quitter plein écran' : 'Plein écran'}
+          className="absolute top-2 right-2 z-[700] panel px-2.5 py-1.5 text-[10px] font-semibold border border-ink-700/60 hover:border-accent/50 hover:text-accent transition-colors flex items-center gap-1">
+          {fullscreen ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
+          <span className="hidden sm:inline">{fullscreen ? 'Réduire' : 'Plein écran'}</span>
+        </button>
 
         <LocationMap
           mode={mode}
@@ -372,6 +389,7 @@ function CarteTab({ latestDate, earliestDate }: { latestDate: string | null; ear
           tileStyle={tileStyle}
           cluster={useCluster}
           semanticFilter={semanticFilter}
+          addressLookup={addressLookup}
         />
 
         {/* Legende interactive — bottom left */}
@@ -496,6 +514,14 @@ function VisitesTab() {
 function VisitRow({ visit, idx, swrKey }: { visit: LocationVisit; idx: number; swrKey: unknown[] }) {
   const meta = getSemanticMeta(visit.semantic_type)
   const Icon = meta.icon
+  // Lookup adresse depuis le cache global SWR (partage avec CarteTab)
+  const { data: addressesData } = useSWR('addresses-index', () => api.locations.addresses(),
+    { revalidateOnFocus: false })
+  const addr = useMemo(() => {
+    if (!addressesData) return null
+    const lookup = buildAddressLookup(addressesData.addresses)
+    return lookup(parseFloat(visit.lat), parseFloat(visit.lng))
+  }, [addressesData, visit.lat, visit.lng])
   const start = new Date(visit.start_time)
   const end   = new Date(visit.end_time)
   const durationMin = Math.round((end.getTime() - start.getTime()) / 60000)
@@ -523,6 +549,9 @@ function VisitRow({ visit, idx, swrKey }: { visit: LocationVisit; idx: number; s
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-semibold" style={{ color: meta.hex }}>{meta.label}</span>
+          {addr?.label && (
+            <span className="text-xs text-amber-300 truncate max-w-[60%]">📍 {addr.label}</span>
+          )}
           {visit.probability !== null && visit.probability < 0.8 && (
             <span className="text-[10px] text-ink-500 font-mono">{Math.round((visit.probability ?? 0) * 100)}%</span>
           )}
@@ -1050,6 +1079,9 @@ function LieuxTab() {
       </div>
 
       <div className="flex flex-col gap-3">
+        {/* Batch geocoding tout en haut */}
+        <BatchGeocodeButton />
+
         <div className="panel p-4">
           <div className="flex items-center gap-2 mb-3">
             <Home size={14} className="text-green-400" />

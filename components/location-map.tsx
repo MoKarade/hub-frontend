@@ -13,6 +13,7 @@ import 'leaflet.heat'  // attache L.heatLayer
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import { useEffect, useMemo, useRef } from 'react'
 import type { LocationPoint, LocationVisit } from '@/lib/api'
+import type { AddressLookup } from '@/lib/addresses'
 
 export type TileStyle = 'dark' | 'satellite' | 'street' | 'topo'
 
@@ -22,7 +23,7 @@ const TILE_CONFIGS: Record<TileStyle, { url: string; attribution: string; maxZoo
     attribution: '&copy; OSM &copy; CARTO',
   },
   street: {
-    url: 'https://{s}.basemaps.cartocdn.com/voyager/{z}/{x}/{y}{r}.png',
+    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
     attribution: '&copy; OSM &copy; CARTO',
   },
   satellite: {
@@ -160,7 +161,36 @@ function TrajectoryLayer({ points }: { points: LocationPoint[] }) {
   )
 }
 
-function VisitMarker({ visit }: { visit: LocationVisit }) {
+// Cluster icon : rond vert qui scale logarithmiquement avec le count.
+// 2 markers = ~24px, 10 = ~32px, 100 = ~44px, 1000 = ~56px, max 64px.
+// Couleur : gradient vert (peu) → orange (beaucoup).
+function createClusterIcon(cluster: L.MarkerCluster): L.DivIcon {
+  const count = cluster.getChildCount()
+  const size = Math.max(22, Math.min(64, 18 + Math.log2(count + 1) * 6))
+  // Couleur selon la densite
+  let bg: string, border: string
+  if (count < 10)        { bg = 'rgba(92, 219, 149, 0.85)';  border = '#5cdb95' }
+  else if (count < 50)   { bg = 'rgba(92, 219, 149, 0.9)';   border = '#5cdb95' }
+  else if (count < 200)  { bg = 'rgba(255, 184, 77, 0.9)';   border = '#ffb84d' }
+  else if (count < 1000) { bg = 'rgba(251, 146, 60, 0.95)';  border = '#fb923c' }
+  else                   { bg = 'rgba(239, 68, 68, 0.95)';   border = '#ef4444' }
+  const fontSize = size < 30 ? 10 : size < 45 ? 12 : 14
+  const html = `
+    <div style="
+      width: ${size}px; height: ${size}px;
+      background: ${bg};
+      border: 2px solid ${border};
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      color: #0d1117; font-weight: 700; font-family: ui-monospace,monospace;
+      font-size: ${fontSize}px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.5), 0 0 0 4px ${border}30;
+      transition: transform 0.15s ease;
+    ">${count}</div>`
+  return L.divIcon({ html, className: 'hub-cluster', iconSize: L.point(size, size) })
+}
+
+function VisitMarker({ visit, addressLookup }: { visit: LocationVisit; addressLookup?: AddressLookup }) {
   const color = getSemanticColor(visit.semantic_type)
   const start = new Date(visit.start_time)
   const end = new Date(visit.end_time)
@@ -169,16 +199,27 @@ function VisitMarker({ visit }: { visit: LocationVisit }) {
     ? `${durationMin}min`
     : `${Math.floor(durationMin / 60)}h${String(durationMin % 60).padStart(2, '0')}`
   const radius = Math.max(4, Math.min(14, 4 + Math.log2(durationMin + 1)))
+  const lat = parseFloat(visit.lat)
+  const lng = parseFloat(visit.lng)
+  const addr = addressLookup ? addressLookup(lat, lng) : null
   return (
     <CircleMarker
-      center={[parseFloat(visit.lat), parseFloat(visit.lng)]}
+      center={[lat, lng]}
       radius={radius}
       pathOptions={{ color, fillColor: color, fillOpacity: 0.55, weight: 1.5 }}
     >
       <Tooltip>
-        <div style={{ fontSize: 11, fontFamily: 'monospace', lineHeight: 1.5 }}>
+        <div style={{ fontSize: 11, fontFamily: 'monospace', lineHeight: 1.5, maxWidth: 240 }}>
           <div style={{ color, fontWeight: 'bold' }}>{visit.semantic_type ?? 'LIEU INCONNU'}</div>
-          <div>
+          {addr?.label && (
+            <div style={{ color: '#fbbf24', fontWeight: 600, fontFamily: 'sans-serif', marginTop: 2 }}>
+              📍 {addr.label}
+            </div>
+          )}
+          {addr?.country && !addr.label?.includes(addr.country) && (
+            <div style={{ color: '#8b95a3', fontFamily: 'sans-serif', fontSize: 10 }}>{addr.country}</div>
+          )}
+          <div style={{ marginTop: 3 }}>
             {start.toLocaleDateString('fr-CA', { day: 'numeric', month: 'short' })}{' '}
             {start.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' })}
             {' → '}
@@ -186,7 +227,7 @@ function VisitMarker({ visit }: { visit: LocationVisit }) {
           </div>
           <div style={{ color: '#5cdb95' }}>Durée : {fmtDur}</div>
           <div style={{ color: '#8b95a3' }}>
-            {parseFloat(visit.lat).toFixed(5)}°, {parseFloat(visit.lng).toFixed(5)}°
+            {lat.toFixed(5)}°, {lng.toFixed(5)}°
           </div>
         </div>
       </Tooltip>
@@ -211,6 +252,7 @@ interface LocationMapProps {
   tileStyle?: TileStyle
   cluster?: boolean         // active marker clustering pour visits
   semanticFilter?: string | null  // ne montre que ce type semantique (legende interactive)
+  addressLookup?: AddressLookup  // permet d'afficher l'adresse dans les tooltips
 }
 
 export function LocationMap({
@@ -226,6 +268,7 @@ export function LocationMap({
   tileStyle = 'dark',
   cluster = false,
   semanticFilter = null,
+  addressLookup,
 }: LocationMapProps) {
   const tile = TILE_CONFIGS[tileStyle]
   const filteredVisits = useMemo(() => {
@@ -265,12 +308,15 @@ export function LocationMap({
         cluster
           ? <MarkerClusterGroup
               chunkedLoading
-              maxClusterRadius={45}
+              maxClusterRadius={50}
               spiderfyOnMaxZoom={true}
-              showCoverageOnHover={false}>
-              {filteredVisits.map((v) => <VisitMarker key={v.id} visit={v} />)}
+              showCoverageOnHover={false}
+              animate={true}
+              animateAddingMarkers={false}
+              iconCreateFunction={createClusterIcon}>
+              {filteredVisits.map((v) => <VisitMarker key={v.id} visit={v} addressLookup={addressLookup} />)}
             </MarkerClusterGroup>
-          : filteredVisits.map((v) => <VisitMarker key={v.id} visit={v} />)
+          : filteredVisits.map((v) => <VisitMarker key={v.id} visit={v} addressLookup={addressLookup} />)
       )}
 
       {/* ── Mode "points" ──────────────────────────────────────────────── */}

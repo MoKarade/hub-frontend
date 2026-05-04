@@ -391,6 +391,48 @@ export type YearComparisonResponse = {
   years: YearMonthlyData[]
 }
 
+export type AddressLite = {
+  lat_e4: number
+  lng_e4: number
+  label: string | null
+  city: string | null
+  country: string | null
+  country_code: string | null
+}
+
+export type AddressesIndexResponse = {
+  total: number
+  addresses: AddressLite[]
+}
+
+export type GeocodeBatchResponse = {
+  started: boolean
+  total_to_process: number
+  already_cached: number
+  message: string
+}
+
+export type GeocodeProgressResponse = {
+  running: boolean
+  total: number
+  processed: number
+  successes: number
+  errors: number
+  skipped: number
+  pct: number
+  started_at: string | null
+  last_address: string | null
+  current_label: string | null
+  eta_seconds: number | null
+}
+
+export type VisitWithAddress = LocationVisit & {
+  address: string | null
+  full_address: string | null
+  city: string | null
+  country: string | null
+}
+
 export type ReverseGeocodeResponse = {
   lat: number
   lng: number
@@ -1076,6 +1118,19 @@ export const api = {
       request<WorkDetectResponse>('/v1/locations/auto-detect-work' + qs({ months_back })),
     yearComparison: () =>
       request<YearComparisonResponse>('/v1/locations/year-comparison'),
+    addresses: (country?: string) =>
+      request<AddressesIndexResponse>('/v1/locations/addresses' + qs({ country })),
+    geocodeBatch: (payload: { only_unknown?: boolean; max_cells?: number }) =>
+      request<GeocodeBatchResponse>('/v1/locations/geocode-batch', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    geocodeProgress: () =>
+      request<GeocodeProgressResponse>('/v1/locations/geocode-progress'),
+    geocodeStop: () =>
+      request<{ stopped: boolean; was_running: boolean }>('/v1/locations/geocode-stop', {
+        method: 'POST',
+      }),
     ingestFile: (filePath: string) =>
       request<LocationIngestResponse>('/v1/locations/ingest-file', {
         method: 'POST',
