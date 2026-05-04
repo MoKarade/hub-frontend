@@ -3,11 +3,11 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import useSWR from 'swr'
 import { useState } from 'react'
-import { X, MapPin, Clock, Calendar, Hash, Home, Briefcase, Navigation, Sparkles, RefreshCw, Loader2 } from 'lucide-react'
+import { X, MapPin, Clock, Calendar, Hash, Home, Briefcase, Navigation, Sparkles, RefreshCw, Loader2 , type LucideIcon } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
-const SEMANTIC_LABELS: Record<string, { label: string; hex: string; icon: React.ComponentType<{ size?: number; className?: string }> }> = {
+const SEMANTIC_LABELS: Record<string, { label: string; hex: string; icon: LucideIcon }> = {
   HOME:              { label: 'Domicile',      hex: '#5cdb95', icon: Home       },
   INFERRED_HOME:     { label: 'Domicile (inf)', hex: '#3db37a', icon: Home      },
   WORK:              { label: 'Travail',       hex: '#5fb3f4', icon: Briefcase  },
@@ -110,7 +110,7 @@ export function ClickPopup({ lat, lng, radius = 200, onClose }: ClickPopupProps)
             <div className="text-center py-8">
               <div className="text-3xl mb-2 opacity-50">🚫</div>
               <p className="text-sm text-ink-400">Aucune visite dans ce rayon</p>
-              <p className="text-[10px] text-ink-600 font-mono mt-1">Essaie d'augmenter le rayon</p>
+              <p className="text-[10px] text-ink-600 font-mono mt-1">Essaie d&apos;augmenter le rayon</p>
             </div>
           ) : (
             <>
@@ -206,7 +206,7 @@ export function ClickPopup({ lat, lng, radius = 200, onClose }: ClickPopupProps)
 }
 
 function BigStat({ icon: Icon, label, value, hex }: {
-  icon: React.ComponentType<{ size?: number; className?: string }>
+  icon: LucideIcon
   label: string; value: string; hex: string
 }) {
   return (

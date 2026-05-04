@@ -8,11 +8,11 @@ import {
   Map as MapIcon, Globe, Calendar, TrendingUp, RefreshCw, Upload, Layers,
   Sparkles, Settings, CheckCircle, Clock, Ruler, BarChart3, Compass, Flame,
   Zap, Activity, Satellite, Trophy, Award, AlertTriangle, Crosshair,
-  Maximize2, Minimize2, Loader2,
+  Maximize2, Minimize2, Loader2, X, type LucideIcon,
 } from 'lucide-react'
-import dynamic from 'next/dynamic'
+import nextDynamic from 'next/dynamic'
+import { Suspense, useMemo, useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useMemo, useState, useCallback, type ComponentType } from 'react'
 import useSWR, { mutate } from 'swr'
 import { api, type LocationVisit, type LocationStats } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -25,7 +25,7 @@ import { NamedPlacesPanel } from '@/components/locations/named-places'
 import type { MapMode, TileStyle } from '@/components/location-map'
 import { buildAddressLookup } from '@/lib/addresses'
 
-const LocationMap = dynamic(
+const LocationMap = nextDynamic(
   () => import('@/components/location-map').then(m => ({ default: m.LocationMap })),
   { ssr: false, loading: () => <div className="h-full w-full flex items-center justify-center text-ink-400 text-sm font-mono">Chargement de la carte…</div> }
 )
@@ -41,7 +41,7 @@ const TABS: TabItem[] = [
   { id: 'lieux',   label: 'Mes Lieux', icon: Home       },
 ]
 
-const SEMANTIC_META: Record<string, { label: string; icon: ComponentType<{ size?: number; className?: string }>; hex: string }> = {
+const SEMANTIC_META: Record<string, { label: string; icon: LucideIcon; hex: string }> = {
   HOME:              { label: 'Domicile',       icon: Home,       hex: '#5cdb95' },
   INFERRED_HOME:     { label: 'Domicile (inf)', icon: Home,       hex: '#3db37a' },
   WORK:              { label: 'Travail',        icon: Briefcase,  hex: '#5fb3f4' },
@@ -51,7 +51,7 @@ const SEMANTIC_META: Record<string, { label: string; icon: ComponentType<{ size?
   UNKNOWN:           { label: 'Lieu inconnu',   icon: MapPin,     hex: '#8b95a3' },
 }
 
-const ACTIVITY_ICONS: Record<string, { icon: ComponentType<{ size?: number; className?: string }>; label: string; hex: string }> = {
+const ACTIVITY_ICONS: Record<string, { icon: LucideIcon; label: string; hex: string }> = {
   IN_PASSENGER_VEHICLE: { icon: Car,        label: 'Voiture',  hex: '#ffb84d' },
   WALKING:              { icon: Footprints, label: 'Marche',   hex: '#5cdb95' },
   FLYING:               { icon: Plane,      label: 'Avion',    hex: '#5fb3f4' },
@@ -72,6 +72,14 @@ function getSemanticMeta(type: string | null) {
 // ─── Page principale ──────────────────────────────────────────────────────────
 
 export default function LocationsPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-ink-400 text-sm font-mono">Chargement…</div>}>
+      <LocationsPageInner />
+    </Suspense>
+  )
+}
+
+function LocationsPageInner() {
   const activeTab = useActiveTab(TABS, 'tab', 'carte')
   const { data: stats } = useSWR('locations-stats', () => api.locations.stats())
   const router = useRouter()
@@ -201,7 +209,7 @@ function IngestButton() {
 
 // ─── CarteTab — multi-modes + click popup ───────────────────────────────────
 
-const MAP_MODES: Array<{ id: MapMode; label: string; icon: ComponentType<{ size?: number; className?: string }>; hex: string }> = [
+const MAP_MODES: Array<{ id: MapMode; label: string; icon: LucideIcon; hex: string }> = [
   { id: 'visits',     label: 'Visites',  icon: MapPin,     hex: '#5cdb95' },
   { id: 'points',     label: 'Points',   icon: Navigation, hex: '#ffb84d' },
   { id: 'trajectory', label: 'Trajets',  icon: Activity,   hex: '#5fb3f4' },
@@ -318,7 +326,7 @@ function CarteTab({ latestDate, earliestDate }: { latestDate: string | null; ear
         ))}
         {isFullRange && (
           <span className="text-[10px] font-mono text-accent ml-1">
-            {earliestDate?.slice(0, 4)} → {latestDate?.slice(0, 4)} · tout l'historique
+            {earliestDate?.slice(0, 4)} → {latestDate?.slice(0, 4)} · tout l&apos;historique
           </span>
         )}
       </div>
@@ -487,8 +495,8 @@ function CarteTab({ latestDate, earliestDate }: { latestDate: string | null; ear
             onAllYears={() => { setStartDate(safeStart); setEndDate(safeEnd) }}
           />
           <p className="text-[10px] text-ink-500 font-mono">
-            🔥 Heatmap : densité des points GPS. Plus c'est chaud (jaune/orange), plus tu y as passé de temps.
-            Slider = filtre année par année pour voir l'évolution dans le temps.
+            🔥 Heatmap : densité des points GPS. Plus c&apos;est chaud (jaune/orange), plus tu y as passé de temps.
+            Slider = filtre année par année pour voir l&apos;évolution dans le temps.
           </p>
         </>
       )}
@@ -998,7 +1006,7 @@ function StatsTab() {
             ))}
           </div>
           <p className="text-[10px] text-ink-500 mt-2 font-mono">
-            💡 Téléphone éteint, pays sans GPS, batterie morte, ou simplement pas d'app Google Maps active.
+            💡 Téléphone éteint, pays sans GPS, batterie morte, ou simplement pas d&apos;app Google Maps active.
           </p>
         </div>
       )}
@@ -1007,7 +1015,7 @@ function StatsTab() {
 }
 
 function StatBlock({ icon: Icon, label, value, hex }: {
-  icon: ComponentType<{ size?: number; className?: string }>; label: string; value: string; hex: string
+  icon: LucideIcon; label: string; value: string; hex: string
 }) {
   return (
     <div className="flex items-center gap-3">
@@ -1024,7 +1032,7 @@ function StatBlock({ icon: Icon, label, value, hex }: {
 }
 
 function FunFact({ icon: Icon, label, value, sub, hex }: {
-  icon: ComponentType<{ size?: number; className?: string }>; label: string; value: string; sub: string; hex: string
+  icon: LucideIcon; label: string; value: string; sub: string; hex: string
 }) {
   return (
     <div className="flex items-center gap-3 p-2.5 rounded-lg bg-ink-800/30 border border-ink-700/40">
@@ -1135,7 +1143,7 @@ function LieuxTab() {
           </div>
 
           <div className="text-[10px] text-ink-500 font-mono bg-ink-800/50 rounded px-2.5 py-2 leading-relaxed">
-            💡 Astuce : tu peux aussi <strong className="text-accent">cliquer sur la carte</strong> dans l'onglet "Carte GPS" pour copier les coordonnées d'un lieu.
+            💡 Astuce : tu peux aussi <strong className="text-accent">cliquer sur la carte</strong> dans l&apos;onglet &quot;Carte GPS&quot; pour copier les coordonnées d&apos;un lieu.
           </div>
 
           <button onClick={handleRetag} disabled={loading || !lat || !lng}
@@ -1290,7 +1298,7 @@ function InsightModal({ insight, onClose }: { insight: import('@/lib/api').Insig
             <a href={`/?q=${encodeURIComponent(insight.cta_question)}`}
               className="block px-3 py-2 rounded-md bg-ink-800 border border-ink-700 hover:border-accent/50 transition-colors text-sm text-ink-200 font-mono">
               💬 {insight.cta_question}
-              <span className="block text-[10px] text-accent mt-1">→ Demander à l'IA</span>
+              <span className="block text-[10px] text-accent mt-1">→ Demander à l&apos;IA</span>
             </a>
           </div>
         )}
@@ -1632,7 +1640,7 @@ function YearChip({ color, label, year, years, onChange, onRemove }: {
 
 // ─── TileSelector (overlay top-left) ──────────────────────────────────────────
 
-const TILE_OPTIONS: Array<{ id: TileStyle; label: string; icon: ComponentType<{ size?: number; className?: string }> }> = [
+const TILE_OPTIONS: Array<{ id: TileStyle; label: string; icon: LucideIcon }> = [
   { id: 'dark',      label: 'Dark',      icon: MapIcon   },
   { id: 'street',    label: 'Voyager',   icon: Globe     },
   { id: 'satellite', label: 'Satellite', icon: Satellite },
@@ -1661,7 +1669,7 @@ function TileSelector({ value, onChange }: { value: TileStyle; onChange: (v: Til
 
 // ─── SemanticLegend (overlay bottom-left, interactive) ────────────────────────
 
-const LEGEND_ORDER: Array<{ type: string; label: string; icon: ComponentType<{ size?: number; className?: string }>; hex: string }> = [
+const LEGEND_ORDER: Array<{ type: string; label: string; icon: LucideIcon; hex: string }> = [
   { type: 'HOME',             label: 'Domicile',  icon: Home,       hex: '#5cdb95' },
   { type: 'INFERRED_HOME',    label: 'Dom. inf.', icon: Home,       hex: '#3db37a' },
   { type: 'WORK',             label: 'Travail',   icon: Briefcase,  hex: '#5fb3f4' },

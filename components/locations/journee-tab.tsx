@@ -3,12 +3,11 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import useSWR from 'swr'
 import dynamic from 'next/dynamic'
-import { useState, useMemo, useCallback, type ComponentType } from 'react'
-import { X } from 'lucide-react'
+import { useState, useMemo, useCallback } from 'react'
 import {
-  ChevronLeft, ChevronRight, MapPin, Home, Briefcase, Navigation,
+  X, ChevronLeft, ChevronRight, MapPin, Home, Briefcase, Navigation,
   Sparkles, Car, Train, Plane, Footprints, Bike, Clock, Ruler, RefreshCw, Calendar,
-  CalendarDays, Camera,
+  CalendarDays, Camera, type LucideIcon,
 } from 'lucide-react'
 import { api, photoThumbUrl, type LocationVisit, type LocationActivity, type CalEventItem, type PhotoItem } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -18,7 +17,7 @@ const LocationMap = dynamic(
   { ssr: false, loading: () => <div className="h-full w-full flex items-center justify-center text-ink-400 text-sm font-mono">Chargement…</div> }
 )
 
-const SEMANTIC: Record<string, { label: string; hex: string; icon: ComponentType<{ size?: number; className?: string }> }> = {
+const SEMANTIC: Record<string, { label: string; hex: string; icon: LucideIcon }> = {
   HOME:              { label: 'Domicile',     hex: '#5cdb95', icon: Home       },
   INFERRED_HOME:     { label: 'Domicile inf', hex: '#3db37a', icon: Home       },
   WORK:              { label: 'Travail',      hex: '#5fb3f4', icon: Briefcase  },
@@ -28,7 +27,7 @@ const SEMANTIC: Record<string, { label: string; hex: string; icon: ComponentType
   UNKNOWN:           { label: 'Lieu',         hex: '#8b95a3', icon: MapPin     },
 }
 
-const ACTIVITY: Record<string, { label: string; hex: string; icon: ComponentType<{ size?: number; className?: string }> }> = {
+const ACTIVITY: Record<string, { label: string; hex: string; icon: LucideIcon }> = {
   IN_PASSENGER_VEHICLE: { label: 'Voiture',  hex: '#ffb84d', icon: Car        },
   IN_VEHICLE:           { label: 'Véhicule', hex: '#fbbf24', icon: Car        },
   WALKING:              { label: 'Marche',   hex: '#5cdb95', icon: Footprints },
@@ -343,8 +342,8 @@ function CalendarPanel({ events, date }: { events: CalEventItem[]; date: string 
 }
 
 function EventDetailModal({ event, onClose }: { event: CalEventItem; onClose: () => void }) {
-  const start = event.start_time ? new Date(event.start_time) : null
-  const end = event.end_time ? new Date(event.end_time) : null
+  const start = event.start_at ? new Date(event.start_at) : null
+  const end = event.end_at ? new Date(event.end_at) : null
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -547,7 +546,7 @@ function DayMap({ dayData }: { dayData: { points: import('@/lib/api').LocationPo
 }
 
 function DayTile({ icon: Icon, label, value, hex }: {
-  icon: ComponentType<{ size?: number; className?: string }>
+  icon: LucideIcon
   label: string; value: string | number; hex: string
 }) {
   return (

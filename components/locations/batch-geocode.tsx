@@ -53,7 +53,7 @@ export function BatchGeocodeButton() {
     if (progress && !progress.running && progress.processed > 0) {
       mutate('addresses-index')
     }
-  }, [progress?.running, progress?.processed])
+  }, [progress])
 
   return (
     <div className="panel p-4 space-y-3">
@@ -66,7 +66,7 @@ export function BatchGeocodeButton() {
       </div>
 
       <p className="text-xs text-ink-500">
-        Trouve l'adresse exacte (rue, ville, pays) de chaque lieu visité via OpenStreetMap.
+        Trouve l&apos;adresse exacte (rue, ville, pays) de chaque lieu visité via OpenStreetMap.
         Rate-limit : 1 req/sec → environ <strong className="text-ink-300">50 min pour ~3000 cellules</strong>.
       </p>
 

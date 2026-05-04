@@ -117,7 +117,7 @@ export function NamedPlacesPanel() {
           })}
           {places?.length === 0 && !creating && (
             <p className="text-xs text-ink-500 italic text-center py-4">
-              Aucun lieu nommé. Click "+ Ajouter" pour commencer.
+              Aucun lieu nommé. Click &quot;+ Ajouter&quot; pour commencer.
             </p>
           )}
         </AnimatePresence>

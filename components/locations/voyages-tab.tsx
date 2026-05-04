@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic'
 import { useState, useMemo } from 'react'
 import {
   MapPin, Compass, Plane, Calendar, Ruler, Hash, RefreshCw, ChevronRight,
-  Settings, Globe, Clock, Search, X, Camera,
+  Settings, Globe, Clock, Search, X, Camera, type LucideIcon,
 } from 'lucide-react'
 import { api, photoThumbUrl, type Trip, type TripNote, type PhotoItem } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -195,7 +195,7 @@ export function VoyagesTab({ onOpenDay }: VoyagesTabProps) {
               </div>
 
               <p className="text-[10px] text-ink-500 font-mono leading-relaxed">
-                💡 Si tu as déménagé : laisse "auto" et ajuste la fenêtre récente, OU saisis tes coords manuellement (Google Maps clic-droit).
+                💡 Si tu as déménagé : laisse &quot;auto&quot; et ajuste la fenêtre récente, OU saisis tes coords manuellement (Google Maps clic-droit).
               </p>
             </div>
           </motion.div>
@@ -212,7 +212,7 @@ export function VoyagesTab({ onOpenDay }: VoyagesTabProps) {
           <div className="text-3xl mb-2 opacity-40">🏠</div>
           <p className="text-sm text-ink-400">Pas encore de domicile défini</p>
           <p className="text-[10px] text-ink-500 font-mono mt-1">
-            Va dans l'onglet "Mes Lieux" pour définir ton HOME et activer la détection de voyages.
+            Va dans l&apos;onglet &quot;Mes Lieux&quot; pour définir ton HOME et activer la détection de voyages.
           </p>
         </div>
       ) : data?.trips.length === 0 ? (
@@ -464,7 +464,7 @@ function guessRegionFromCoords(lat: number | undefined, lng: number | undefined)
 }
 
 function CompactStat({ icon: Icon, label, value, hex }: {
-  icon: React.ComponentType<{ size?: number; className?: string }>
+  icon: LucideIcon
   label: string; value: string; hex: string
 }) {
   return (

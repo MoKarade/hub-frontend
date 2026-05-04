@@ -9,7 +9,7 @@ import {
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import 'leaflet.heat'  // attache L.heatLayer
-// @ts-expect-error - react-leaflet-cluster has incomplete types
+// @ts-ignore - react-leaflet-cluster has incomplete types
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import { useEffect, useMemo, useRef } from 'react'
 import type { LocationPoint, LocationVisit } from '@/lib/api'
@@ -164,7 +164,11 @@ function TrajectoryLayer({ points }: { points: LocationPoint[] }) {
 // Cluster icon : rond vert qui scale logarithmiquement avec le count.
 // 2 markers = ~24px, 10 = ~32px, 100 = ~44px, 1000 = ~56px, max 64px.
 // Couleur : gradient vert (peu) → orange (beaucoup).
-function createClusterIcon(cluster: L.MarkerCluster): L.DivIcon {
+interface MarkerClusterLike {
+  getChildCount(): number
+}
+
+function createClusterIcon(cluster: MarkerClusterLike): L.DivIcon {
   const count = cluster.getChildCount()
   const size = Math.max(22, Math.min(64, 18 + Math.log2(count + 1) * 6))
   // Couleur selon la densite
