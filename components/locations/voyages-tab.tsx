@@ -8,8 +8,9 @@ import {
   MapPin, Compass, Plane, Calendar, Ruler, Hash, RefreshCw, ChevronRight,
   Settings, Globe, Clock, Search, X,
 } from 'lucide-react'
-import { api, type Trip } from '@/lib/api'
+import { api, type Trip, type TripNote } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { TripNoteButton } from '@/components/locations/trip-note-editor'
 
 const LocationMap = dynamic(
   () => import('@/components/location-map').then(m => ({ default: m.LocationMap })),
@@ -45,6 +46,14 @@ export function VoyagesTab({ onOpenDay }: VoyagesTabProps) {
       home_lng: homeLngN,
     })
   )
+
+  // Notes des voyages (pour montrer un badge sur les cards)
+  const { data: tripNotes } = useSWR('trip-notes-all', () => api.locations.tripNotes.list())
+  const noteByDate = useMemo(() => {
+    const m = new Map<string, TripNote>()
+    for (const n of tripNotes ?? []) m.set(n.start_date, n)
+    return m
+  }, [tripNotes])
 
   // Filtre client : recherche texte + année
   const filteredTrips = useMemo(() => {
@@ -265,7 +274,8 @@ export function VoyagesTab({ onOpenDay }: VoyagesTabProps) {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {filteredTrips.map((trip, i) => (
-                <TripCard key={`${trip.start_date}-${i}`} trip={trip} idx={i} onOpenDay={onOpenDay} />
+                <TripCard key={`${trip.start_date}-${i}`} trip={trip} idx={i}
+                  note={noteByDate.get(trip.start_date) ?? null} onOpenDay={onOpenDay} />
               ))}
             </div>
           )}
@@ -275,8 +285,8 @@ export function VoyagesTab({ onOpenDay }: VoyagesTabProps) {
   )
 }
 
-function TripCard({ trip, idx, onOpenDay }: {
-  trip: Trip; idx: number; onOpenDay?: (date: string) => void
+function TripCard({ trip, idx, note, onOpenDay }: {
+  trip: Trip; idx: number; note?: TripNote | null; onOpenDay?: (date: string) => void
 }) {
   const start = new Date(trip.start_date), end = new Date(trip.end_date)
   const sameYear = start.getFullYear() === end.getFullYear()
@@ -317,11 +327,19 @@ function TripCard({ trip, idx, onOpenDay }: {
 
       {/* Body */}
       <div className="p-3 flex flex-col gap-2 flex-1">
+        {/* Auto-name (if available) */}
+        {trip.name && (
+          <div className="flex items-center gap-1.5 -mb-1">
+            <span className="text-sm font-bold text-amber-300 truncate" title={trip.name}>
+              📍 {trip.name}
+            </span>
+          </div>
+        )}
         {/* Dates */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <Calendar size={11} className="text-accent" />
-            <span className="text-xs font-semibold text-ink-200">{dateLabel}</span>
+            <span className={cn('text-xs', trip.name ? 'text-ink-400 font-mono' : 'font-semibold text-ink-200')}>{dateLabel}</span>
           </div>
           <ChevronRight size={14} className="text-ink-500 group-hover:text-accent transition-colors" />
         </div>
@@ -351,10 +369,29 @@ function TripCard({ trip, idx, onOpenDay }: {
           </div>
         )}
 
-        {/* Total distance */}
-        {trip.total_distance_km > 0 && (
-          <div className="text-[10px] text-ink-500 font-mono mt-auto pt-1">
-            Distance totale parcourue : <span className="text-amber-400">{trip.total_distance_km.toLocaleString('fr-CA')} km</span>
+        {/* Total distance + Note button */}
+        <div className="flex items-end justify-between gap-2 mt-auto pt-1">
+          {trip.total_distance_km > 0 ? (
+            <div className="text-[10px] text-ink-500 font-mono">
+              <span className="text-amber-400">{trip.total_distance_km.toLocaleString('fr-CA')} km</span> parcourus
+            </div>
+          ) : <div />}
+          <TripNoteButton
+            startDate={trip.start_date}
+            endDate={trip.end_date}
+            existingNote={note ?? undefined}
+          />
+        </div>
+
+        {/* Snippet de la note si presente */}
+        {note?.title && (
+          <div className="text-[10px] text-amber-200 italic mt-1 truncate font-medium" title={note.content}>
+            「 {note.title} 」
+          </div>
+        )}
+        {!note?.title && note?.content && (
+          <div className="text-[10px] text-amber-200/70 italic mt-1 line-clamp-2" title={note.content}>
+            {note.content}
           </div>
         )}
       </div>

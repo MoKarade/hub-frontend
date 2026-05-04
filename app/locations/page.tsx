@@ -21,6 +21,7 @@ import { ClickPopup } from '@/components/locations/click-popup'
 import { JourneeTab } from '@/components/locations/journee-tab'
 import { VoyagesTab } from '@/components/locations/voyages-tab'
 import { BatchGeocodeButton } from '@/components/locations/batch-geocode'
+import { NamedPlacesPanel } from '@/components/locations/named-places'
 import type { MapMode, TileStyle } from '@/components/location-map'
 import { buildAddressLookup } from '@/lib/addresses'
 
@@ -606,6 +607,8 @@ function StatsTab() {
   const { data: streaksData } = useSWR('streaks',          () => api.locations.streaks())
   const { data: gapsData }    = useSWR('gaps-72',          () => api.locations.gaps({ min_hours: 72, limit: 10 }))
   const { data: workDetect }  = useSWR('auto-work-12',     () => api.locations.autoDetectWork(12))
+  const { data: yearComp }    = useSWR('year-comp',        () => api.locations.yearComparison())
+  const { data: regions }     = useSWR('regions',          () => api.locations.regions())
 
   if (!stats) return (
     <div className="panel p-8 flex justify-center"><RefreshCw size={18} className="animate-spin text-ink-400" /></div>
@@ -879,6 +882,63 @@ function StatsTab() {
         </div>
       )}
 
+      {/* ── Regions visited (countries / cities) ───────────────────────── */}
+      {regions && regions.countries_count > 0 && (
+        <div className="panel p-4 col-span-full">
+          <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+            <Globe size={12} className="text-sky-400" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-400">
+              Pays & villes visités
+            </span>
+            <div className="flex items-center gap-3 ml-auto text-xs">
+              <span className="font-mono">
+                <span className="text-sky-400 text-base font-bold">{regions.countries_count}</span>
+                <span className="text-ink-500 ml-1">pays</span>
+              </span>
+              <span className="font-mono">
+                <span className="text-amber-400 text-base font-bold">{regions.cities_count}</span>
+                <span className="text-ink-500 ml-1">villes</span>
+              </span>
+              <span className="text-[10px] font-mono text-ink-600">
+                ({regions.cells_geocoded.toLocaleString('fr-CA')} cellules géocodées)
+              </span>
+            </div>
+          </div>
+
+          {/* Top pays par visites */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+            {regions.countries.slice(0, 12).map((c, i) => (
+              <motion.div key={c.country}
+                initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.03 }}
+                className="p-2.5 rounded-md bg-ink-800/40 border border-ink-700/40 hover:border-ink-600 transition-colors">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono uppercase text-ink-500">
+                    {c.country_code ?? '?'}
+                  </span>
+                  <span className="text-xs font-semibold text-ink-200 truncate">{c.country}</span>
+                </div>
+                <div className="text-[10px] text-ink-500 font-mono mt-1">
+                  <span className="text-accent">{c.visit_count.toLocaleString('fr-CA')}</span> visites · {c.cities.length} ville{c.cities.length > 1 ? 's' : ''}
+                </div>
+                {c.cities.length > 0 && (
+                  <div className="text-[10px] text-ink-400 mt-1 truncate" title={c.cities.join(', ')}>
+                    {c.cities.slice(0, 4).join(' · ')}{c.cities.length > 4 ? ` +${c.cities.length - 4}` : ''}
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Year-over-year comparison ──────────────────────────────────── */}
+      {yearComp && yearComp.years.length >= 2 && (
+        <div className="panel p-4 col-span-full">
+          <YearComparePanel years={yearComp.years} />
+        </div>
+      )}
+
       {/* ── Data gaps ──────────────────────────────────────────────────── */}
       {gapsData && gapsData.gaps.length > 0 && (
         <div className="panel p-4 col-span-full">
@@ -1079,7 +1139,10 @@ function LieuxTab() {
       </div>
 
       <div className="flex flex-col gap-3">
-        {/* Batch geocoding tout en haut */}
+        {/* Lieux nommes en haut */}
+        <NamedPlacesPanel />
+
+        {/* Batch geocoding */}
         <BatchGeocodeButton />
 
         <div className="panel p-4">
@@ -1112,6 +1175,145 @@ function LieuxTab() {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─── YearComparePanel ─────────────────────────────────────────────────────────
+
+const MONTH_LABELS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc']
+const COMPARE_COLORS = ['#5cdb95', '#5fb3f4', '#fbbf24', '#c084fc']
+
+function YearComparePanel({ years }: { years: { year: number; monthly_visits: number[] }[] }) {
+  const sortedYears = useMemo(() => [...years].sort((a, b) => b.year - a.year), [years])
+  const defaultA = sortedYears[0]?.year
+  const defaultB = sortedYears[1]?.year ?? sortedYears[0]?.year
+
+  const [yearA, setYearA] = useState(defaultA)
+  const [yearB, setYearB] = useState(defaultB)
+  const [yearC, setYearC] = useState<number | null>(null)
+
+  const dataA = years.find(y => y.year === yearA)
+  const dataB = years.find(y => y.year === yearB)
+  const dataC = yearC ? years.find(y => y.year === yearC) : null
+
+  const max = useMemo(() => {
+    const all: number[] = []
+    if (dataA) all.push(...dataA.monthly_visits)
+    if (dataB) all.push(...dataB.monthly_visits)
+    if (dataC) all.push(...dataC.monthly_visits)
+    return Math.max(1, ...all)
+  }, [dataA, dataB, dataC])
+
+  const totals = {
+    A: dataA?.monthly_visits.reduce((s, v) => s + v, 0) ?? 0,
+    B: dataB?.monthly_visits.reduce((s, v) => s + v, 0) ?? 0,
+    C: dataC?.monthly_visits.reduce((s, v) => s + v, 0) ?? 0,
+  }
+  const diffPct = totals.B > 0 ? Math.round(((totals.A - totals.B) / totals.B) * 100) : 0
+
+  return (
+    <>
+      <div className="flex items-center gap-3 mb-3 flex-wrap">
+        <BarChart3 size={12} className="text-accent" />
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-400">
+          Comparaison année par année
+        </span>
+        <div className="flex items-center gap-2 ml-auto flex-wrap">
+          <YearChip color={COMPARE_COLORS[0]} label="A" year={yearA} years={sortedYears} onChange={setYearA} />
+          <YearChip color={COMPARE_COLORS[1]} label="B" year={yearB} years={sortedYears} onChange={setYearB} />
+          {yearC === null ? (
+            <button onClick={() => setYearC(sortedYears[2]?.year ?? sortedYears[0]?.year)}
+              className="text-[10px] text-ink-500 hover:text-accent transition-colors px-2 py-1 border border-ink-700 rounded">
+              + 3e année
+            </button>
+          ) : (
+            <YearChip color={COMPARE_COLORS[2]} label="C" year={yearC} years={sortedYears} onChange={setYearC}
+              onRemove={() => setYearC(null)} />
+          )}
+        </div>
+      </div>
+
+      {/* Bars : 12 mois, par mois 2-3 sub-bars groupees */}
+      <div className="grid grid-cols-12 gap-2 h-32">
+        {Array.from({ length: 12 }).map((_, m) => {
+          const valA = dataA?.monthly_visits[m] ?? 0
+          const valB = dataB?.monthly_visits[m] ?? 0
+          const valC = dataC?.monthly_visits[m] ?? 0
+          const maxV = Math.max(valA, valB, valC)
+          const winnerColor = maxV === valA ? COMPARE_COLORS[0]
+                          : maxV === valC ? COMPARE_COLORS[2]
+                          : COMPARE_COLORS[1]
+          return (
+            <div key={m} className="flex flex-col items-center group">
+              <div className="text-[9px] font-mono text-ink-600 group-hover:text-ink-200 transition-colors h-3 leading-3">
+                {maxV > 0 ? maxV.toLocaleString('fr-CA') : ''}
+              </div>
+              <div className="flex-1 w-full flex items-end justify-center gap-px">
+                <Bar value={valA} max={max} color={COMPARE_COLORS[0]} />
+                <Bar value={valB} max={max} color={COMPARE_COLORS[1]} />
+                {dataC && <Bar value={valC} max={max} color={COMPARE_COLORS[2]} />}
+              </div>
+              <div className="text-[9px] font-mono text-ink-500 mt-1" style={{ color: winnerColor }}>
+                {MONTH_LABELS[m]}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Totaux + diff */}
+      <div className="flex items-center gap-4 mt-3 text-xs flex-wrap">
+        <span className="font-mono">
+          <span style={{ color: COMPARE_COLORS[0] }}>● {yearA}</span>
+          {' '}<span className="text-ink-400">{totals.A.toLocaleString('fr-CA')} visites</span>
+        </span>
+        <span className="font-mono">
+          <span style={{ color: COMPARE_COLORS[1] }}>● {yearB}</span>
+          {' '}<span className="text-ink-400">{totals.B.toLocaleString('fr-CA')} visites</span>
+        </span>
+        {yearC !== null && (
+          <span className="font-mono">
+            <span style={{ color: COMPARE_COLORS[2] }}>● {yearC}</span>
+            {' '}<span className="text-ink-400">{totals.C.toLocaleString('fr-CA')} visites</span>
+          </span>
+        )}
+        {totals.B > 0 && (
+          <span className={cn('font-mono ml-auto px-2 py-0.5 rounded',
+            diffPct >= 0 ? 'text-accent bg-accent/10' : 'text-amber-400 bg-amber-500/10')}>
+            {yearA} {diffPct >= 0 ? '+' : ''}{diffPct}% vs {yearB}
+          </span>
+        )}
+      </div>
+    </>
+  )
+}
+
+function Bar({ value, max, color }: { value: number; max: number; color: string }) {
+  const pct = (value / max) * 100
+  return (
+    <div className="flex-1 min-w-[3px]" style={{ height: `${Math.max(pct, value > 0 ? 2 : 0)}%` }}>
+      <div className="w-full h-full rounded-t transition-all hover:brightness-125" style={{ backgroundColor: color }} />
+    </div>
+  )
+}
+
+function YearChip({ color, label, year, years, onChange, onRemove }: {
+  color: string; label: string; year: number
+  years: { year: number }[]; onChange: (y: number) => void; onRemove?: () => void
+}) {
+  return (
+    <div className="flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded border border-ink-700 bg-ink-800/50">
+      <span style={{ color }}>● {label}</span>
+      <select value={year} onChange={(e) => onChange(Number(e.target.value))}
+        className="bg-transparent border-0 outline-none text-ink-200 text-[10px] font-mono cursor-pointer">
+        {years.map((y) => (
+          <option key={y.year} value={y.year} className="bg-ink-900">{y.year}</option>
+        ))}
+      </select>
+      {onRemove && (
+        <button onClick={onRemove} className="text-ink-500 hover:text-red-400 transition-colors">×</button>
+      )}
     </div>
   )
 }

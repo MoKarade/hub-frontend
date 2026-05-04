@@ -318,6 +318,9 @@ export type Trip = {
   total_distance_km: number
   max_distance_from_home_km: number
   destinations: TripDestination[]
+  name: string | null
+  primary_country: string | null
+  primary_city: string | null
 }
 
 export type TripsResponse = {
@@ -391,6 +394,21 @@ export type YearComparisonResponse = {
   years: YearMonthlyData[]
 }
 
+export type CountryStat = {
+  country: string
+  country_code: string | null
+  cell_count: number
+  visit_count: number
+  cities: string[]
+}
+
+export type RegionsResponse = {
+  countries_count: number
+  cities_count: number
+  cells_geocoded: number
+  countries: CountryStat[]
+}
+
 export type AddressLite = {
   lat_e4: number
   lng_e4: number
@@ -456,6 +474,37 @@ export type AskResponse = {
   sql: string
   rows: Record<string, unknown>[]
   row_count: number
+}
+
+export type ChatMessage = {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export type NamedPlace = {
+  id: string
+  name: string
+  lat: string
+  lng: string
+  radius_m: number
+  semantic_type: string | null
+  color: string | null
+  icon: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type TripNote = {
+  id: string
+  start_date: string
+  end_date: string | null
+  title: string | null
+  content: string
+  rating: number | null
+  color: string | null
+  created_at: string
+  updated_at: string
 }
 
 export type PingResponse = {
@@ -832,10 +881,10 @@ export const api = {
 
   ai: {
     ping: () => request<PingResponse>('/v1/ai/ping'),
-    ask: (question: string) =>
+    ask: (question: string, history: ChatMessage[] = []) =>
       request<AskResponse>('/v1/ai/ask', {
         method: 'POST',
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question, history }),
       }),
     chat: (
       message: string,
@@ -1120,6 +1169,7 @@ export const api = {
       request<YearComparisonResponse>('/v1/locations/year-comparison'),
     addresses: (country?: string) =>
       request<AddressesIndexResponse>('/v1/locations/addresses' + qs({ country })),
+    regions: () => request<RegionsResponse>('/v1/locations/regions'),
     geocodeBatch: (payload: { only_unknown?: boolean; max_cells?: number }) =>
       request<GeocodeBatchResponse>('/v1/locations/geocode-batch', {
         method: 'POST',
@@ -1131,6 +1181,43 @@ export const api = {
       request<{ stopped: boolean; was_running: boolean }>('/v1/locations/geocode-stop', {
         method: 'POST',
       }),
+    namedPlaces: {
+      list: () => request<NamedPlace[]>('/v1/locations/named-places'),
+      create: (payload: {
+        name: string; lat: number; lng: number; radius_m?: number;
+        semantic_type?: string; color?: string; icon?: string; notes?: string;
+      }) =>
+        request<NamedPlace>('/v1/locations/named-places', {
+          method: 'POST', body: JSON.stringify(payload),
+        }),
+      update: (id: string, payload: Partial<{
+        name: string; lat: number; lng: number; radius_m: number;
+        semantic_type: string; color: string; icon: string; notes: string;
+      }>) =>
+        request<NamedPlace>(`/v1/locations/named-places/${id}`, {
+          method: 'PATCH', body: JSON.stringify(payload),
+        }),
+      delete: (id: string) =>
+        fetch(`${getBaseUrl()}/v1/locations/named-places/${id}`, {
+          method: 'DELETE', credentials: 'include',
+          headers: { 'X-Hub-Client': 'web' },
+        }).then((r) => { if (!r.ok) throw new ApiError(r.status, 'Delete failed') }),
+    },
+    tripNotes: {
+      list: () => request<TripNote[]>('/v1/locations/trip-notes'),
+      upsert: (payload: {
+        start_date: string; end_date?: string | null; title?: string;
+        content: string; rating?: number | null; color?: string;
+      }) =>
+        request<TripNote>('/v1/locations/trip-notes', {
+          method: 'PUT', body: JSON.stringify(payload),
+        }),
+      delete: (start_date: string) =>
+        fetch(`${getBaseUrl()}/v1/locations/trip-notes/${start_date}`, {
+          method: 'DELETE', credentials: 'include',
+          headers: { 'X-Hub-Client': 'web' },
+        }).then((r) => { if (!r.ok) throw new ApiError(r.status, 'Delete failed') }),
+    },
     ingestFile: (filePath: string) =>
       request<LocationIngestResponse>('/v1/locations/ingest-file', {
         method: 'POST',
