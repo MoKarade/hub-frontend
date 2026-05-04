@@ -238,6 +238,109 @@ export type LocationVisitFilters = {
   offset?: number
 }
 
+export type ActivityTypeStats = {
+  activity_type: string
+  count: number
+  total_distance_km: number
+  total_duration_minutes: number
+}
+
+export type YearStats = {
+  year: number
+  visits: number
+  home_visits: number
+  work_visits: number
+}
+
+export type RetagResponse = {
+  updated: number
+  semantic_type: string
+  lat: number
+  lng: number
+  radius_m: number
+}
+
+export type LocationActivity = {
+  id: string
+  start_time: string
+  end_time: string
+  activity_type: string | null
+  distance_meters: number | null
+  probability: number | null
+  start_lat: string | null
+  start_lng: string | null
+  end_lat: string | null
+  end_lng: string | null
+}
+
+export type PlaceStatsResponse = {
+  total_visits: number
+  total_duration_minutes: number
+  first_visit: string | null
+  last_visit: string | null
+  semantic_type_breakdown: Record<string, number>
+  avg_duration_minutes: number
+  visits: LocationVisit[]
+}
+
+export type DaySummary = {
+  date: string
+  visits_count: number
+  activities_count: number
+  points_count: number
+  total_distance_km: number
+  total_duration_minutes: number
+  semantic_type_breakdown: Record<string, number>
+  activity_breakdown: Record<string, { count: number; distance_km: number; minutes: number }>
+}
+
+export type DayResponse = {
+  summary: DaySummary
+  visits: LocationVisit[]
+  activities: LocationActivity[]
+  points: LocationPoint[]
+}
+
+export type TripDestination = {
+  lat: number
+  lng: number
+  semantic_type: string | null
+  count: number
+  distance_km: number
+}
+
+export type Trip = {
+  start_date: string
+  end_date: string
+  duration_days: number
+  visit_count: number
+  activity_count: number
+  total_distance_km: number
+  max_distance_from_home_km: number
+  destinations: TripDestination[]
+}
+
+export type TripsResponse = {
+  home_lat: number
+  home_lng: number
+  home_radius_km: number
+  min_duration_hours: number
+  trips: Trip[]
+}
+
+export type ReverseGeocodeResponse = {
+  lat: number
+  lng: number
+  address: string | null
+  house_number: string | null
+  road: string | null
+  city: string | null
+  state: string | null
+  country: string | null
+  postcode: string | null
+  cached: boolean
+}
+
 export type ReadyResponse = {
   status: 'ok' | 'degraded'
   checks: Record<string, { status: string; [key: string]: unknown }>
@@ -875,8 +978,31 @@ export const api = {
     visits: {
       list: (filters: LocationVisitFilters = {}) =>
         request<LocationVisit[]>('/v1/locations/visits' + qs(filters)),
+      patch: (id: string, semantic_type: string) =>
+        request<LocationVisit>(`/v1/locations/visits/${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ semantic_type }),
+        }),
     },
     stats: () => request<LocationStats>('/v1/locations/stats'),
+    activityStats: () => request<ActivityTypeStats[]>('/v1/locations/activity-stats'),
+    visitsByYear: () => request<YearStats[]>('/v1/locations/visits-by-year'),
+    retag: (payload: { lat: number; lng: number; radius_m: number; semantic_type: string }) =>
+      request<RetagResponse>('/v1/locations/retag', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    placeStats: (lat: number, lng: number, radius_m = 100) =>
+      request<PlaceStatsResponse>('/v1/locations/place-stats' + qs({ lat, lng, radius_m })),
+    day: (date: string) =>
+      request<DayResponse>('/v1/locations/day' + qs({ date })),
+    trips: (params: {
+      home_lat?: number; home_lng?: number;
+      home_radius_km?: number; min_duration_hours?: number; min_distance_km?: number
+    } = {}) =>
+      request<TripsResponse>('/v1/locations/trips' + qs(params)),
+    reverseGeocode: (lat: number, lng: number) =>
+      request<ReverseGeocodeResponse>('/v1/locations/reverse-geocode' + qs({ lat, lng })),
     ingestFile: (filePath: string) =>
       request<LocationIngestResponse>('/v1/locations/ingest-file', {
         method: 'POST',

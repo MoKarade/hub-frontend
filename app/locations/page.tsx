@@ -6,14 +6,20 @@ import { Tabs, useActiveTab, type TabItem } from '@/components/tabs'
 import {
   MapPin, Home, Briefcase, Navigation, Car, Train, Footprints, Plane, Bike,
   Map as MapIcon, Globe, Calendar, TrendingUp, RefreshCw, Upload, Layers,
-  Sparkles, Settings, CheckCircle, Clock, Ruler, BarChart3,
+  Sparkles, Settings, CheckCircle, Clock, Ruler, BarChart3, Compass, Flame,
+  Zap, Activity,
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useMemo, useState, useCallback, type ComponentType } from 'react'
 import useSWR, { mutate } from 'swr'
-import { api, type LocationVisit, type LocationPoint, type LocationStats } from '@/lib/api'
+import { api, type LocationVisit, type LocationStats } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
+import { ClickPopup } from '@/components/locations/click-popup'
+import { JourneeTab } from '@/components/locations/journee-tab'
+import { VoyagesTab } from '@/components/locations/voyages-tab'
+import type { MapMode } from '@/components/location-map'
 
 const LocationMap = dynamic(
   () => import('@/components/location-map').then(m => ({ default: m.LocationMap })),
@@ -23,10 +29,12 @@ const LocationMap = dynamic(
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
 const TABS: TabItem[] = [
-  { id: 'carte',   label: 'Carte GPS',  icon: MapIcon    },
-  { id: 'visites', label: 'Visites',    icon: MapPin     },
-  { id: 'stats',   label: 'Stats',      icon: TrendingUp },
-  { id: 'lieux',   label: 'Mes Lieux',  icon: Home       },
+  { id: 'carte',   label: 'Carte GPS', icon: MapIcon    },
+  { id: 'journee', label: 'Journée',   icon: Calendar   },
+  { id: 'visites', label: 'Visites',   icon: MapPin     },
+  { id: 'voyages', label: 'Voyages',   icon: Compass    },
+  { id: 'stats',   label: 'Stats',     icon: TrendingUp },
+  { id: 'lieux',   label: 'Mes Lieux', icon: Home       },
 ]
 
 const SEMANTIC_META: Record<string, { label: string; icon: ComponentType<{ size?: number; className?: string }>; hex: string }> = {
@@ -40,7 +48,7 @@ const SEMANTIC_META: Record<string, { label: string; icon: ComponentType<{ size?
 }
 
 const ACTIVITY_ICONS: Record<string, { icon: ComponentType<{ size?: number; className?: string }>; label: string; hex: string }> = {
-  IN_PASSENGER_VEHICLE: { icon: Car,       label: 'Voiture',  hex: '#ffb84d' },
+  IN_PASSENGER_VEHICLE: { icon: Car,        label: 'Voiture',  hex: '#ffb84d' },
   WALKING:              { icon: Footprints, label: 'Marche',   hex: '#5cdb95' },
   FLYING:               { icon: Plane,      label: 'Avion',    hex: '#5fb3f4' },
   IN_TRAIN:             { icon: Train,      label: 'Train',    hex: '#c084fc' },
@@ -62,12 +70,22 @@ function getSemanticMeta(type: string | null) {
 export default function LocationsPage() {
   const activeTab = useActiveTab(TABS, 'tab', 'carte')
   const { data: stats } = useSWR('locations-stats', () => api.locations.stats())
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const dateParam = searchParams.get('date')
+
+  const navigateToDay = useCallback((date: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('tab', 'journee')
+    params.set('date', date)
+    router.push(`/locations?${params.toString()}`)
+  }, [router, searchParams])
 
   return (
     <div className="flex min-h-screen">
       <Sidebar />
-      <main className="flex-1 px-4 sm:px-6 lg:px-8 pt-16 lg:pt-6 pb-6 max-w-[1400px] flex flex-col gap-4">
-        <header className="flex items-end justify-between">
+      <main className="flex-1 px-4 sm:px-6 lg:px-8 pt-16 lg:pt-6 pb-6 max-w-[1500px] flex flex-col gap-4">
+        <header className="flex items-end justify-between flex-wrap gap-2">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
               <Globe size={22} className="text-accent" />
@@ -84,7 +102,9 @@ export default function LocationsPage() {
         <Tabs items={TABS} defaultId="carte" />
 
         {activeTab === 'carte'   && <CarteTab latestDate={stats?.latest_date ?? null} />}
+        {activeTab === 'journee' && <JourneeTab initialDate={dateParam ?? undefined} defaultDate={stats?.latest_date ?? new Date().toISOString().slice(0, 10)} />}
         {activeTab === 'visites' && <VisitesTab />}
+        {activeTab === 'voyages' && <VoyagesTab onOpenDay={navigateToDay} />}
         {activeTab === 'stats'   && <StatsTab />}
         {activeTab === 'lieux'   && <LieuxTab />}
 
@@ -107,8 +127,8 @@ function GlobalStatsStrip({ stats }: { stats: LocationStats | null }) {
       { label: 'Lieux uniques', value: stats.unique_places.toLocaleString('fr-CA'),        icon: Globe,     color: 'text-sky-400'     },
       { label: 'Domicile',      value: stats.home_visits.toLocaleString('fr-CA'),          icon: Home,      color: 'text-green-400'   },
       { label: 'Travail',       value: stats.work_visits.toLocaleString('fr-CA'),          icon: Briefcase, color: 'text-blue-400'    },
-      { label: 'Points GPS',    value: (stats.total_path_points / 1000).toFixed(1) + 'k', icon: Navigation,color: 'text-amber-400'   },
-      { label: 'Années',        value: String(years),                                      icon: Calendar,  color: 'text-ink-300'     },
+      { label: 'Points GPS',    value: (stats.total_path_points / 1000).toFixed(1) + 'k',  icon: Navigation, color: 'text-amber-400'  },
+      { label: 'Années',        value: String(years),                                       icon: Calendar,  color: 'text-ink-300'    },
     ]
   }, [stats])
 
@@ -174,10 +194,16 @@ function IngestButton() {
   )
 }
 
-// ─── CarteTab ─────────────────────────────────────────────────────────────────
+// ─── CarteTab — multi-modes + click popup ───────────────────────────────────
+
+const MAP_MODES: Array<{ id: MapMode; label: string; icon: ComponentType<{ size?: number; className?: string }>; hex: string }> = [
+  { id: 'visits',     label: 'Visites',  icon: MapPin,     hex: '#5cdb95' },
+  { id: 'points',     label: 'Points',   icon: Navigation, hex: '#ffb84d' },
+  { id: 'trajectory', label: 'Trajets',  icon: Activity,   hex: '#5fb3f4' },
+  { id: 'heatmap',    label: 'Heatmap',  icon: Flame,      hex: '#fb923c' },
+]
 
 function CarteTab({ latestDate }: { latestDate: string | null }) {
-  // Fenêtre par défaut : 2 mois AVANT la dernière donnée connue (pas aujourd'hui!)
   const defaultEnd = latestDate ?? new Date().toISOString().slice(0, 10)
   const defaultStart = useMemo(() => {
     const d = new Date(defaultEnd)
@@ -187,23 +213,31 @@ function CarteTab({ latestDate }: { latestDate: string | null }) {
 
   const [startDate, setStartDate] = useState(defaultStart)
   const [endDate, setEndDate]     = useState(defaultEnd)
-  const [layer, setLayer]         = useState<'visits' | 'points'>('visits')
+  const [mode, setMode]           = useState<MapMode>('visits')
+  const [clickPos, setClickPos]   = useState<{ lat: number; lng: number } | null>(null)
 
+  // Visites pour le mode visites
   const { data: visits, isLoading: visitsLoading } = useSWR(
-    layer === 'visits' ? ['loc-visits-map', startDate, endDate] : null,
+    mode === 'visits' ? ['loc-visits-map', startDate, endDate] : null,
     () => api.locations.visits.list({ start_date: startDate, end_date: endDate, limit: 2000 })
   )
+  // Points pour les modes points / trajectory / heatmap
   const { data: points, isLoading: pointsLoading } = useSWR(
-    layer === 'points' ? ['loc-points-map', startDate, endDate] : null,
-    () => api.locations.points.list({ start_date: startDate, end_date: endDate, limit: 5000, source: 'google_timeline' })
+    mode !== 'visits' ? ['loc-points-map', startDate, endDate, mode] : null,
+    () => api.locations.points.list({
+      start_date: startDate, end_date: endDate,
+      limit: mode === 'heatmap' ? 10000 : 5000,
+      source: 'google_timeline',
+    })
   )
 
-  const isLoading = layer === 'visits' ? visitsLoading : pointsLoading
-  const count = layer === 'visits' ? (visits?.length ?? 0) : (points?.length ?? 0)
+  const isLoading = mode === 'visits' ? visitsLoading : pointsLoading
+  const count = mode === 'visits' ? (visits?.length ?? 0) : (points?.length ?? 0)
 
   return (
     <div className="flex flex-col gap-3 flex-1">
-      <div className="panel p-3 grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
+      {/* Filtres */}
+      <div className="panel p-3 grid grid-cols-2 md:grid-cols-[1fr_1fr_auto_auto] gap-3 items-end">
         <div>
           <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-1">Du</label>
           <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
@@ -215,39 +249,79 @@ function CarteTab({ latestDate }: { latestDate: string | null }) {
             className="w-full bg-ink-800 border border-ink-700 rounded-md px-3 py-1.5 text-sm font-mono" />
         </div>
         <div>
-          <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-1">Couche</label>
+          <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-1">Mode</label>
           <div className="flex gap-1">
-            {(['visits', 'points'] as const).map((l) => (
-              <button key={l} onClick={() => setLayer(l)}
-                className={cn('flex-1 px-2 py-1.5 rounded-md text-xs border transition-colors',
-                  layer === l ? 'bg-accent/15 border-accent/40 text-accent'
-                              : 'bg-ink-800 border-ink-700 text-ink-300 hover:border-ink-600')}>
-                {l === 'visits'
-                  ? <><MapPin size={10} className="inline mr-1" />Visites</>
-                  : <><Navigation size={10} className="inline mr-1" />Points GPS</>}
-              </button>
-            ))}
+            {MAP_MODES.map((m) => {
+              const MIcon = m.icon
+              const active = mode === m.id
+              return (
+                <button key={m.id} onClick={() => setMode(m.id)}
+                  title={m.label}
+                  className={cn('px-2.5 py-1.5 rounded-md text-xs border transition-all flex items-center gap-1',
+                    active ? 'font-semibold' : 'bg-ink-800 border-ink-700 text-ink-400 hover:border-ink-500 hover:text-ink-200')}
+                  style={active ? { backgroundColor: m.hex + '20', borderColor: m.hex + '60', color: m.hex } : {}}>
+                  <MIcon size={11} />
+                  <span className="hidden sm:inline">{m.label}</span>
+                </button>
+              )
+            })}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 self-end pb-1">
           <Layers size={13} className="text-ink-400" />
           <span className="text-xs text-ink-400 font-mono">
-            {isLoading ? '…' : `${count.toLocaleString('fr-CA')} ${layer === 'visits' ? 'visites' : 'pts'}`}
+            {isLoading ? '…' : `${count.toLocaleString('fr-CA')}`}
           </span>
         </div>
       </div>
 
-      <div className="panel overflow-hidden flex-1 min-h-[520px] relative">
+      {/* Carte + click popup */}
+      <div className="panel overflow-hidden flex-1 min-h-[560px] relative">
         {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-ink-950/60 z-10 text-sm text-ink-300 font-mono">
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[600] panel px-3 py-1.5 text-[11px] font-mono text-ink-300 border-accent/30 flex items-center gap-1.5">
+            <RefreshCw size={11} className="animate-spin" />
             Chargement…
           </div>
         )}
+
+        {/* Hint click */}
+        {!clickPos && (
+          <div className="absolute top-2 right-2 z-[600] panel px-3 py-1.5 text-[10px] font-mono text-ink-400 border-ink-700/50 pointer-events-none flex items-center gap-1.5">
+            <Zap size={10} className="text-accent" />
+            Clique sur la carte pour voir un lieu
+          </div>
+        )}
+
         <LocationMap
-          points={layer === 'points' ? (points ?? []) : []}
-          visits={layer === 'visits' ? (visits ?? []) : []}
+          mode={mode}
+          visits={mode === 'visits' ? (visits ?? []) : []}
+          points={mode !== 'visits' ? (points ?? []) : []}
+          onMapClick={(lat, lng) => setClickPos({ lat, lng })}
+          highlightLat={clickPos?.lat}
+          highlightLng={clickPos?.lng}
+          highlightRadius={200}
         />
+
+        {clickPos && (
+          <ClickPopup
+            lat={clickPos.lat}
+            lng={clickPos.lng}
+            onClose={() => setClickPos(null)}
+          />
+        )}
       </div>
+
+      {/* Mode hint */}
+      {mode === 'heatmap' && (
+        <p className="text-[10px] text-ink-500 font-mono">
+          🔥 Heatmap : densité des points GPS. Plus c'est chaud (jaune/orange), plus tu y as passé de temps.
+        </p>
+      )}
+      {mode === 'trajectory' && (
+        <p className="text-[10px] text-ink-500 font-mono">
+          🛣️ Trajets : polylines dégradées par heure du jour (jaune=matin, vert=midi, bleu=soir, violet=nuit). Gaps &gt;30min cassent la ligne.
+        </p>
+      )}
     </div>
   )
 }
@@ -371,7 +445,6 @@ function VisitRow({ visit, idx, swrKey }: { visit: LocationVisit; idx: number; s
           {visit.probability !== null && visit.probability < 0.8 && (
             <span className="text-[10px] text-ink-500 font-mono">{Math.round((visit.probability ?? 0) * 100)}%</span>
           )}
-          {/* Quick-retag — visible au hover */}
           <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 ml-auto">
             {[
               { type: 'HOME',    icon: Home,      hex: '#5cdb95' },
@@ -437,20 +510,18 @@ function StatsTab() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 
-      {/* Vue globale */}
       <div className="panel p-4 col-span-full">
         <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-3">
           Vue globale — {yearsSpan} ans ({stats.earliest_date} → {stats.latest_date})
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <StatBlock icon={MapPin}    label="Visites totales"  value={stats.total_visits.toLocaleString('fr-CA')}    hex="#5cdb95" />
-          <StatBlock icon={Globe}     label="Lieux uniques"    value={stats.unique_places.toLocaleString('fr-CA')}   hex="#5fb3f4" />
-          <StatBlock icon={Ruler}     label="Distance totale"  value={(totalDistKm / 1000).toFixed(0) + 'k km'}      hex="#ffb84d" />
-          <StatBlock icon={Clock}     label="Heures de trajet" value={Math.round(totalDurMin / 60).toLocaleString('fr-CA') + 'h'} hex="#c084fc" />
+          <StatBlock icon={MapPin} label="Visites totales"  value={stats.total_visits.toLocaleString('fr-CA')}    hex="#5cdb95" />
+          <StatBlock icon={Globe}  label="Lieux uniques"    value={stats.unique_places.toLocaleString('fr-CA')}   hex="#5fb3f4" />
+          <StatBlock icon={Ruler}  label="Distance totale"  value={(totalDistKm / 1000).toFixed(0) + 'k km'}      hex="#ffb84d" />
+          <StatBlock icon={Clock}  label="Heures de trajet" value={Math.round(totalDurMin / 60).toLocaleString('fr-CA') + 'h'} hex="#c084fc" />
         </div>
       </div>
 
-      {/* Répartition visites */}
       <div className="panel p-4">
         <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-3">Répartition visites</div>
         <div className="space-y-3">
@@ -475,23 +546,21 @@ function StatsTab() {
         </div>
       </div>
 
-      {/* Distances clés */}
       <div className="panel p-4">
         <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-3">Distances clés</div>
         <div className="space-y-2.5">
-          {flyEntry && <FunFact2 icon={Plane} label="En avion"
+          {flyEntry && <FunFact icon={Plane} label="En avion"
             value={flyEntry.total_distance_km.toLocaleString('fr-CA') + ' km'}
             sub={`${flyEntry.count} vols · ≈${(flyEntry.total_distance_km / 40075).toFixed(1)}× tour de la Terre`} hex="#5fb3f4" />}
-          {carEntry && <FunFact2 icon={Car} label="En voiture"
+          {carEntry && <FunFact icon={Car} label="En voiture"
             value={carEntry.total_distance_km.toLocaleString('fr-CA') + ' km'}
             sub={`${carEntry.count} trajets · ≈${(carEntry.total_distance_km / 40075).toFixed(1)}× tour de la Terre`} hex="#ffb84d" />}
-          {walkEntry && <FunFact2 icon={Footprints} label="À pied"
+          {walkEntry && <FunFact icon={Footprints} label="À pied"
             value={walkEntry.total_distance_km.toLocaleString('fr-CA') + ' km'}
             sub={`${walkEntry.count} sessions · ${Math.round(walkEntry.total_duration_minutes / 60)}h`} hex="#5cdb95" />}
         </div>
       </div>
 
-      {/* Modes de transport — données réelles */}
       <div className="panel p-4 col-span-1 md:col-span-full lg:col-span-full">
         <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-3 flex items-center gap-1.5">
           <BarChart3 size={12} className="text-ink-400" />
@@ -532,7 +601,6 @@ function StatsTab() {
         ) : <div className="flex justify-center p-4"><RefreshCw size={16} className="animate-spin text-ink-400" /></div>}
       </div>
 
-      {/* Histogramme par année */}
       {yearStats && yearStats.length > 0 && (
         <div className="panel p-4 col-span-full">
           <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-3">Visites par année</div>
@@ -549,10 +617,8 @@ function StatsTab() {
                   <div className="flex-1 flex flex-col justify-end w-full">
                     <div className="relative w-full rounded-t overflow-hidden"
                       style={{ height: `${Math.max(pct, 2)}%`, backgroundColor: '#8b95a322' }}>
-                      {/* HOME en vert depuis le bas */}
                       <div className="absolute bottom-0 left-0 right-0"
                         style={{ height: `${homePct}%`, backgroundColor: '#5cdb95' }} />
-                      {/* WORK en bleu par-dessus HOME */}
                       <div className="absolute left-0 right-0"
                         style={{ bottom: `${homePct}%`, height: `${workPct}%`, backgroundColor: '#5fb3f4' }} />
                     </div>
@@ -593,7 +659,7 @@ function StatBlock({ icon: Icon, label, value, hex }: {
   )
 }
 
-function FunFact2({ icon: Icon, label, value, sub, hex }: {
+function FunFact({ icon: Icon, label, value, sub, hex }: {
   icon: ComponentType<{ size?: number; className?: string }>; label: string; value: string; sub: string; hex: string
 }) {
   return (
@@ -652,7 +718,6 @@ function LieuxTab() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-      {/* Formulaire */}
       <div className="panel p-4">
         <div className="flex items-center gap-2 mb-1">
           <Settings size={14} className="text-accent" />
@@ -660,11 +725,9 @@ function LieuxTab() {
         </div>
         <p className="text-xs text-ink-500 mb-4">
           Toutes les visites dans le rayon seront retaggées avec le type choisi.
-          Idéal pour définir ton domicile, lieu de travail, etc.
         </p>
 
         <div className="space-y-3">
-          {/* Type */}
           <div>
             <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-1.5">Type de lieu</label>
             <div className="flex flex-wrap gap-1.5">
@@ -680,7 +743,6 @@ function LieuxTab() {
             </div>
           </div>
 
-          {/* Coordonnées */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-1">Latitude</label>
@@ -696,7 +758,6 @@ function LieuxTab() {
             </div>
           </div>
 
-          {/* Rayon */}
           <div>
             <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-1">
               Rayon : {parseInt(radius).toLocaleString()} m
@@ -709,9 +770,8 @@ function LieuxTab() {
             </div>
           </div>
 
-          {/* Astuce */}
           <div className="text-[10px] text-ink-500 font-mono bg-ink-800/50 rounded px-2.5 py-2 leading-relaxed">
-            💡 Google Maps → clic droit sur ta maison → copie les coords (ex: 46.7383, -71.2433)
+            💡 Astuce : tu peux aussi <strong className="text-accent">cliquer sur la carte</strong> dans l'onglet "Carte GPS" pour copier les coordonnées d'un lieu.
           </div>
 
           <button onClick={handleRetag} disabled={loading || !lat || !lng}
@@ -742,7 +802,6 @@ function LieuxTab() {
         </div>
       </div>
 
-      {/* Résumé lieux actuels */}
       <div className="flex flex-col gap-3">
         <div className="panel p-4">
           <div className="flex items-center gap-2 mb-3">
