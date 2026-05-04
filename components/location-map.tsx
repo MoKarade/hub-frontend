@@ -9,8 +9,33 @@ import {
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import 'leaflet.heat'  // attache L.heatLayer
+// @ts-expect-error - react-leaflet-cluster has incomplete types
+import MarkerClusterGroup from 'react-leaflet-cluster'
 import { useEffect, useMemo, useRef } from 'react'
 import type { LocationPoint, LocationVisit } from '@/lib/api'
+
+export type TileStyle = 'dark' | 'satellite' | 'street' | 'topo'
+
+const TILE_CONFIGS: Record<TileStyle, { url: string; attribution: string; maxZoom?: number }> = {
+  dark: {
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    attribution: '&copy; OSM &copy; CARTO',
+  },
+  street: {
+    url: 'https://{s}.basemaps.cartocdn.com/voyager/{z}/{x}/{y}{r}.png',
+    attribution: '&copy; OSM &copy; CARTO',
+  },
+  satellite: {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, GIS User Community',
+    maxZoom: 19,
+  },
+  topo: {
+    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    attribution: 'Map data: &copy; OpenStreetMap, SRTM | Map style: &copy; OpenTopoMap',
+    maxZoom: 17,
+  },
+}
 
 // ─── Couleurs par activité (points GPS) ─────────────────────────────────────
 
@@ -135,6 +160,40 @@ function TrajectoryLayer({ points }: { points: LocationPoint[] }) {
   )
 }
 
+function VisitMarker({ visit }: { visit: LocationVisit }) {
+  const color = getSemanticColor(visit.semantic_type)
+  const start = new Date(visit.start_time)
+  const end = new Date(visit.end_time)
+  const durationMin = Math.round((end.getTime() - start.getTime()) / 60000)
+  const fmtDur = durationMin < 60
+    ? `${durationMin}min`
+    : `${Math.floor(durationMin / 60)}h${String(durationMin % 60).padStart(2, '0')}`
+  const radius = Math.max(4, Math.min(14, 4 + Math.log2(durationMin + 1)))
+  return (
+    <CircleMarker
+      center={[parseFloat(visit.lat), parseFloat(visit.lng)]}
+      radius={radius}
+      pathOptions={{ color, fillColor: color, fillOpacity: 0.55, weight: 1.5 }}
+    >
+      <Tooltip>
+        <div style={{ fontSize: 11, fontFamily: 'monospace', lineHeight: 1.5 }}>
+          <div style={{ color, fontWeight: 'bold' }}>{visit.semantic_type ?? 'LIEU INCONNU'}</div>
+          <div>
+            {start.toLocaleDateString('fr-CA', { day: 'numeric', month: 'short' })}{' '}
+            {start.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' })}
+            {' → '}
+            {end.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' })}
+          </div>
+          <div style={{ color: '#5cdb95' }}>Durée : {fmtDur}</div>
+          <div style={{ color: '#8b95a3' }}>
+            {parseFloat(visit.lat).toFixed(5)}°, {parseFloat(visit.lng).toFixed(5)}°
+          </div>
+        </div>
+      </Tooltip>
+    </CircleMarker>
+  )
+}
+
 // ─── Composant principal ─────────────────────────────────────────────────────
 
 export type MapMode = 'visits' | 'points' | 'trajectory' | 'heatmap'
@@ -149,6 +208,9 @@ interface LocationMapProps {
   highlightRadius?: number  // mètres
   defaultCenter?: [number, number]
   defaultZoom?: number
+  tileStyle?: TileStyle
+  cluster?: boolean         // active marker clustering pour visits
+  semanticFilter?: string | null  // ne montre que ce type semantique (legende interactive)
 }
 
 export function LocationMap({
@@ -161,17 +223,25 @@ export function LocationMap({
   highlightRadius,
   defaultCenter = [46.7383, -71.2433],  // Lévis QC
   defaultZoom = 11,
+  tileStyle = 'dark',
+  cluster = false,
+  semanticFilter = null,
 }: LocationMapProps) {
+  const tile = TILE_CONFIGS[tileStyle]
+  const filteredVisits = useMemo(() => {
+    if (!semanticFilter) return visits
+    return visits.filter((v) => (v.semantic_type ?? 'UNKNOWN') === semanticFilter)
+  }, [visits, semanticFilter])
   // Bounds pour fit-bounds — selon le mode
   const bounds = useMemo<[number, number][]>(() => {
-    if (mode === 'visits' && visits.length > 0) {
-      return visits.map((v) => [parseFloat(v.lat), parseFloat(v.lng)] as [number, number])
+    if (mode === 'visits' && filteredVisits.length > 0) {
+      return filteredVisits.map((v) => [parseFloat(v.lat), parseFloat(v.lng)] as [number, number])
     }
     if ((mode === 'points' || mode === 'trajectory' || mode === 'heatmap') && points.length > 0) {
       return points.map((p) => [parseFloat(p.latitude), parseFloat(p.longitude)] as [number, number])
     }
     return []
-  }, [mode, points, visits])
+  }, [mode, points, filteredVisits])
 
   return (
     <MapContainer
@@ -181,48 +251,27 @@ export function LocationMap({
       style={{ height: '100%', width: '100%', background: '#0d1117' }}
     >
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
-        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        key={tileStyle}
+        attribution={tile.attribution}
+        url={tile.url}
+        maxZoom={tile.maxZoom ?? 19}
       />
 
       <FitBounds bounds={bounds} />
       {onMapClick && <ClickHandler onMapClick={onMapClick} />}
 
       {/* ── Mode "visits" ──────────────────────────────────────────────── */}
-      {mode === 'visits' && visits.map((v) => {
-        const color = getSemanticColor(v.semantic_type)
-        const start = new Date(v.start_time)
-        const end = new Date(v.end_time)
-        const durationMin = Math.round((end.getTime() - start.getTime()) / 60000)
-        const fmtDur = durationMin < 60
-          ? `${durationMin}min`
-          : `${Math.floor(durationMin / 60)}h${String(durationMin % 60).padStart(2, '0')}`
-        const radius = Math.max(4, Math.min(14, 4 + Math.log2(durationMin + 1)))
-        return (
-          <CircleMarker
-            key={v.id}
-            center={[parseFloat(v.lat), parseFloat(v.lng)]}
-            radius={radius}
-            pathOptions={{ color, fillColor: color, fillOpacity: 0.55, weight: 1.5 }}
-          >
-            <Tooltip>
-              <div style={{ fontSize: 11, fontFamily: 'monospace', lineHeight: 1.5 }}>
-                <div style={{ color, fontWeight: 'bold' }}>{v.semantic_type ?? 'LIEU INCONNU'}</div>
-                <div>
-                  {start.toLocaleDateString('fr-CA', { day: 'numeric', month: 'short' })}{' '}
-                  {start.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' })}
-                  {' → '}
-                  {end.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' })}
-                </div>
-                <div style={{ color: '#5cdb95' }}>Durée : {fmtDur}</div>
-                <div style={{ color: '#8b95a3' }}>
-                  {parseFloat(v.lat).toFixed(5)}°, {parseFloat(v.lng).toFixed(5)}°
-                </div>
-              </div>
-            </Tooltip>
-          </CircleMarker>
-        )
-      })}
+      {mode === 'visits' && (
+        cluster
+          ? <MarkerClusterGroup
+              chunkedLoading
+              maxClusterRadius={45}
+              spiderfyOnMaxZoom={true}
+              showCoverageOnHover={false}>
+              {filteredVisits.map((v) => <VisitMarker key={v.id} visit={v} />)}
+            </MarkerClusterGroup>
+          : filteredVisits.map((v) => <VisitMarker key={v.id} visit={v} />)
+      )}
 
       {/* ── Mode "points" ──────────────────────────────────────────────── */}
       {mode === 'points' && points.map((p) => {

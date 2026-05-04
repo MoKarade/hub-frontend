@@ -328,6 +328,69 @@ export type TripsResponse = {
   trips: Trip[]
 }
 
+export type TopPlace = {
+  lat: number
+  lng: number
+  visit_count: number
+  total_minutes: number
+  semantic_types: string[]
+  first_visit: string | null
+  last_visit: string | null
+  label: string
+}
+
+export type TopPlacesResponse = {
+  bin_size_meters: number
+  places: TopPlace[]
+}
+
+export type Streak = {
+  label: string
+  description: string
+  value: number
+  unit: string
+  period_start: string | null
+  period_end: string | null
+}
+
+export type StreaksResponse = {
+  streaks: Streak[]
+}
+
+export type DataGap = {
+  start_time: string
+  end_time: string
+  duration_hours: number
+  duration_days: number
+}
+
+export type DataGapsResponse = {
+  min_hours: number
+  total_gaps: number
+  total_missing_hours: number
+  gaps: DataGap[]
+}
+
+export type WorkDetectResponse = {
+  detected: boolean
+  lat: number | null
+  lng: number | null
+  visit_count: number
+  confidence: number
+  weekday_visits: number
+  daytime_visits: number
+  label: string | null
+}
+
+export type YearMonthlyData = {
+  year: number
+  monthly_visits: number[]
+}
+
+export type YearComparisonResponse = {
+  years: YearMonthlyData[]
+}
+
 export type ReverseGeocodeResponse = {
   lat: number
   lng: number
@@ -1004,6 +1067,15 @@ export const api = {
       request<TripsResponse>('/v1/locations/trips' + qs(params)),
     reverseGeocode: (lat: number, lng: number) =>
       request<ReverseGeocodeResponse>('/v1/locations/reverse-geocode' + qs({ lat, lng })),
+    topPlaces: (params: { limit?: number; bin_degrees?: number; semantic_type?: string } = {}) =>
+      request<TopPlacesResponse>('/v1/locations/top-places' + qs(params)),
+    streaks: () => request<StreaksResponse>('/v1/locations/streaks'),
+    gaps: (params: { min_hours?: number; limit?: number } = {}) =>
+      request<DataGapsResponse>('/v1/locations/gaps' + qs(params)),
+    autoDetectWork: (months_back = 6) =>
+      request<WorkDetectResponse>('/v1/locations/auto-detect-work' + qs({ months_back })),
+    yearComparison: () =>
+      request<YearComparisonResponse>('/v1/locations/year-comparison'),
     ingestFile: (filePath: string) =>
       request<LocationIngestResponse>('/v1/locations/ingest-file', {
         method: 'POST',

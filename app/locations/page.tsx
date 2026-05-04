@@ -7,7 +7,7 @@ import {
   MapPin, Home, Briefcase, Navigation, Car, Train, Footprints, Plane, Bike,
   Map as MapIcon, Globe, Calendar, TrendingUp, RefreshCw, Upload, Layers,
   Sparkles, Settings, CheckCircle, Clock, Ruler, BarChart3, Compass, Flame,
-  Zap, Activity,
+  Zap, Activity, Satellite, Trophy, Award, AlertTriangle, Crosshair,
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -19,7 +19,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ClickPopup } from '@/components/locations/click-popup'
 import { JourneeTab } from '@/components/locations/journee-tab'
 import { VoyagesTab } from '@/components/locations/voyages-tab'
-import type { MapMode } from '@/components/location-map'
+import type { MapMode, TileStyle } from '@/components/location-map'
 
 const LocationMap = dynamic(
   () => import('@/components/location-map').then(m => ({ default: m.LocationMap })),
@@ -217,6 +217,9 @@ function CarteTab({ latestDate, earliestDate }: { latestDate: string | null; ear
   const [endDate, setEndDate]     = useState(safeEnd)
   const [mode, setMode]           = useState<MapMode>('visits')
   const [clickPos, setClickPos]   = useState<{ lat: number; lng: number } | null>(null)
+  const [tileStyle, setTileStyle] = useState<TileStyle>('dark')
+  const [useCluster, setUseCluster] = useState(true)
+  const [semanticFilter, setSemanticFilter] = useState<string | null>(null)
 
   const setPreset = useCallback((preset: 'all' | '1M' | '3M' | '6M' | '1Y') => {
     setEndDate(safeEnd)
@@ -334,11 +337,27 @@ function CarteTab({ latestDate, earliestDate }: { latestDate: string | null; ear
           </div>
         )}
 
+        {/* Tile selector — top left */}
+        <TileSelector value={tileStyle} onChange={setTileStyle} />
+
+        {/* Cluster toggle — top right */}
+        {mode === 'visits' && (
+          <div className="absolute top-2 right-[170px] z-[600]">
+            <button
+              onClick={() => setUseCluster(!useCluster)}
+              className={cn('panel px-2.5 py-1.5 text-[10px] font-semibold border flex items-center gap-1 transition-colors',
+                useCluster ? 'border-accent/50 text-accent' : 'border-ink-700 text-ink-400 hover:border-ink-500')}>
+              <Crosshair size={11} />
+              {useCluster ? 'Cluster ON' : 'Cluster OFF'}
+            </button>
+          </div>
+        )}
+
         {/* Hint click */}
         {!clickPos && (
           <div className="absolute top-2 right-2 z-[600] panel px-3 py-1.5 text-[10px] font-mono text-ink-400 border-ink-700/50 pointer-events-none flex items-center gap-1.5">
             <Zap size={10} className="text-accent" />
-            Clique sur la carte pour voir un lieu
+            Clique sur la carte
           </div>
         )}
 
@@ -350,7 +369,19 @@ function CarteTab({ latestDate, earliestDate }: { latestDate: string | null; ear
           highlightLat={clickPos?.lat}
           highlightLng={clickPos?.lng}
           highlightRadius={200}
+          tileStyle={tileStyle}
+          cluster={useCluster}
+          semanticFilter={semanticFilter}
         />
+
+        {/* Legende interactive — bottom left */}
+        {mode === 'visits' && visits && visits.length > 0 && (
+          <SemanticLegend
+            visits={visits}
+            active={semanticFilter}
+            onChange={setSemanticFilter}
+          />
+        )}
 
         {clickPos && (
           <ClickPopup
@@ -539,9 +570,13 @@ function VisitRow({ visit, idx, swrKey }: { visit: LocationVisit; idx: number; s
 // ─── StatsTab ─────────────────────────────────────────────────────────────────
 
 function StatsTab() {
-  const { data: stats }     = useSWR('locations-stats', () => api.locations.stats())
-  const { data: actStats }  = useSWR('activity-stats',  () => api.locations.activityStats())
-  const { data: yearStats } = useSWR('visits-by-year',  () => api.locations.visitsByYear())
+  const { data: stats }       = useSWR('locations-stats',  () => api.locations.stats())
+  const { data: actStats }    = useSWR('activity-stats',   () => api.locations.activityStats())
+  const { data: yearStats }   = useSWR('visits-by-year',   () => api.locations.visitsByYear())
+  const { data: topPlaces }   = useSWR('top-places',       () => api.locations.topPlaces({ limit: 10 }))
+  const { data: streaksData } = useSWR('streaks',          () => api.locations.streaks())
+  const { data: gapsData }    = useSWR('gaps-72',          () => api.locations.gaps({ min_hours: 72, limit: 10 }))
+  const { data: workDetect }  = useSWR('auto-work-12',     () => api.locations.autoDetectWork(12))
 
   if (!stats) return (
     <div className="panel p-8 flex justify-center"><RefreshCw size={18} className="animate-spin text-ink-400" /></div>
@@ -691,6 +726,163 @@ function StatsTab() {
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{backgroundColor:'#5fb3f4'}} />Travail ({yearStats.reduce((s, y) => s + y.work_visits, 0).toLocaleString('fr-CA')})</span>
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{backgroundColor:'#8b95a330',border:'1px solid #8b95a3'}} />Autres lieux</span>
           </div>
+        </div>
+      )}
+
+      {/* ── Top 10 lieux ───────────────────────────────────────────────── */}
+      {topPlaces && topPlaces.places.length > 0 && (
+        <div className="panel p-4 col-span-1 md:col-span-2">
+          <div className="flex items-center gap-1.5 mb-3">
+            <Trophy size={12} className="text-amber-400" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-400">
+              Top 10 lieux les plus visités
+            </span>
+            <span className="text-[10px] font-mono text-ink-600 ml-auto">précision {topPlaces.bin_size_meters}m</span>
+          </div>
+          <div className="space-y-1.5">
+            {topPlaces.places.map((p, i) => {
+              const meta = SEMANTIC_META[p.semantic_types[0] ?? 'UNKNOWN'] ?? SEMANTIC_META.UNKNOWN
+              const Icon = meta.icon
+              const totalH = Math.round(p.total_minutes / 60)
+              const maxCount = topPlaces.places[0].visit_count
+              const pct = (p.visit_count / maxCount) * 100
+              return (
+                <motion.div key={`${p.lat}-${p.lng}`}
+                  initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.04 }}
+                  className="flex items-center gap-2.5 p-2 rounded-md bg-ink-800/40 hover:bg-ink-800/80 transition-colors group cursor-default">
+                  <span className="w-6 text-center text-xs font-mono font-bold"
+                    style={{ color: i === 0 ? '#fbbf24' : i < 3 ? '#fb923c' : '#8b95a3' }}>#{i + 1}</span>
+                  <div className="w-7 h-7 rounded-md flex items-center justify-center shrink-0"
+                    style={{ backgroundColor: meta.hex + '22' }}>
+                    <Icon size={12} style={{ color: meta.hex }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="font-semibold" style={{ color: meta.hex }}>{meta.label}</span>
+                      <span className="text-[10px] font-mono text-ink-500 truncate">
+                        {p.lat.toFixed(4)}°, {p.lng.toFixed(4)}°
+                      </span>
+                    </div>
+                    <div className="text-[10px] font-mono text-ink-500 mt-0.5">
+                      {p.first_visit?.slice(0, 4)} → {p.last_visit?.slice(0, 4)}
+                      {' · '}{totalH > 24 ? `${Math.floor(totalH / 24)}j ${totalH % 24}h` : `${totalH}h`}
+                    </div>
+                    <div className="h-1 mt-1 bg-ink-800 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all"
+                        style={{ width: `${pct}%`, backgroundColor: meta.hex }} />
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-base font-bold font-mono leading-none" style={{ color: meta.hex }}>
+                      {p.visit_count.toLocaleString('fr-CA')}
+                    </div>
+                    <div className="text-[9px] text-ink-500">visites</div>
+                  </div>
+                </motion.div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Streaks ────────────────────────────────────────────────────── */}
+      {streaksData && streaksData.streaks.length > 0 && (
+        <div className="panel p-4">
+          <div className="flex items-center gap-1.5 mb-3">
+            <Award size={12} className="text-amber-400" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-400">Records</span>
+          </div>
+          <div className="space-y-2">
+            {streaksData.streaks.map((s, i) => (
+              <motion.div key={s.label}
+                initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className="p-2.5 rounded-md bg-ink-800/40 border border-ink-700/40">
+                <div className="flex items-end justify-between gap-2">
+                  <div className="text-xs text-ink-300">{s.label}</div>
+                  <div className="text-lg font-bold font-mono leading-none text-amber-400">
+                    {s.value.toLocaleString('fr-CA')}<span className="text-[10px] text-ink-500 ml-1">{s.unit}</span>
+                  </div>
+                </div>
+                {(s.period_start || s.description) && (
+                  <div className="text-[10px] text-ink-500 font-mono mt-1.5">
+                    {s.period_start && (
+                      <span>{s.period_start} → {s.period_end ?? s.period_start}</span>
+                    )}
+                    {s.description && (
+                      <span className="text-ink-600 ml-2">{s.description}</span>
+                    )}
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Auto-detect WORK ───────────────────────────────────────────── */}
+      {workDetect && workDetect.detected && (
+        <div className="panel p-4 border-blue-500/30">
+          <div className="flex items-center gap-1.5 mb-3">
+            <Briefcase size={12} className="text-blue-400" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-400">
+              Lieu de travail probable
+            </span>
+            <span className="text-[10px] font-mono text-ink-600 ml-auto">
+              {Math.round(workDetect.confidence * 100)}% confiance
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-lg flex items-center justify-center shrink-0 bg-blue-500/15 border border-blue-500/30">
+              <Briefcase size={20} className="text-blue-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-mono text-sm text-ink-100">
+                {workDetect.lat?.toFixed(5)}°, {workDetect.lng?.toFixed(5)}°
+              </div>
+              <div className="text-[10px] text-ink-400 mt-0.5">{workDetect.label}</div>
+              <p className="text-[10px] text-ink-500 mt-1.5">
+                💡 Va dans <span className="text-accent">Mes Lieux</span> et utilise ces coords pour retag toutes les visites comme WORK.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Data gaps ──────────────────────────────────────────────────── */}
+      {gapsData && gapsData.gaps.length > 0 && (
+        <div className="panel p-4 col-span-full">
+          <div className="flex items-center gap-1.5 mb-3">
+            <AlertTriangle size={12} className="text-amber-400" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-400">
+              Trous de données &gt;72h
+            </span>
+            <span className="text-[10px] font-mono text-ink-500 ml-auto">
+              {gapsData.total_gaps} trous · {Math.round(gapsData.total_missing_hours / 24)}j de données manquantes au total
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+            {gapsData.gaps.slice(0, 10).map((g, i) => (
+              <motion.div key={i}
+                initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: i * 0.02 }}
+                className="p-2 rounded-md bg-amber-500/5 border border-amber-500/30">
+                <div className="text-[10px] font-mono text-amber-400 font-semibold">
+                  {g.duration_days >= 1 ? `${g.duration_days}j ${Math.round(g.duration_hours % 24)}h` : `${Math.round(g.duration_hours)}h`}
+                </div>
+                <div className="text-[10px] font-mono text-ink-500 mt-0.5">
+                  {g.start_time.slice(0, 10)}
+                </div>
+                <div className="text-[10px] font-mono text-ink-600">
+                  → {g.end_time.slice(0, 10)}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+          <p className="text-[10px] text-ink-500 mt-2 font-mono">
+            💡 Téléphone éteint, pays sans GPS, batterie morte, ou simplement pas d'app Google Maps active.
+          </p>
         </div>
       )}
     </div>
@@ -888,6 +1080,99 @@ function LieuxTab() {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─── TileSelector (overlay top-left) ──────────────────────────────────────────
+
+const TILE_OPTIONS: Array<{ id: TileStyle; label: string; icon: ComponentType<{ size?: number; className?: string }> }> = [
+  { id: 'dark',      label: 'Dark',      icon: MapIcon   },
+  { id: 'street',    label: 'Voyager',   icon: Globe     },
+  { id: 'satellite', label: 'Satellite', icon: Satellite },
+  { id: 'topo',      label: 'Topo',      icon: TrendingUp },
+]
+
+function TileSelector({ value, onChange }: { value: TileStyle; onChange: (v: TileStyle) => void }) {
+  return (
+    <div className="absolute top-2 left-2 z-[600] panel p-1 flex gap-0.5 border-ink-700/50">
+      {TILE_OPTIONS.map((t) => {
+        const TIcon = t.icon
+        const active = value === t.id
+        return (
+          <button key={t.id} onClick={() => onChange(t.id)}
+            title={t.label}
+            className={cn('px-2 py-1 rounded text-[10px] font-semibold transition-colors flex items-center gap-1',
+              active ? 'bg-accent/20 text-accent' : 'text-ink-400 hover:text-ink-200 hover:bg-ink-800/50')}>
+            <TIcon size={10} />
+            <span className="hidden sm:inline">{t.label}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── SemanticLegend (overlay bottom-left, interactive) ────────────────────────
+
+const LEGEND_ORDER: Array<{ type: string; label: string; icon: ComponentType<{ size?: number; className?: string }>; hex: string }> = [
+  { type: 'HOME',             label: 'Domicile',  icon: Home,       hex: '#5cdb95' },
+  { type: 'INFERRED_HOME',    label: 'Dom. inf.', icon: Home,       hex: '#3db37a' },
+  { type: 'WORK',             label: 'Travail',   icon: Briefcase,  hex: '#5fb3f4' },
+  { type: 'INFERRED_WORK',    label: 'Trav. inf.', icon: Briefcase, hex: '#3a8fd6' },
+  { type: 'SEARCHED_ADDRESS', label: 'Adresse',   icon: Navigation, hex: '#ffb84d' },
+  { type: 'ALIASED_LOCATION', label: 'Favori',    icon: Sparkles,   hex: '#c084fc' },
+  { type: 'UNKNOWN',          label: 'Autre',     icon: MapPin,     hex: '#8b95a3' },
+]
+
+function SemanticLegend({ visits, active, onChange }: {
+  visits: LocationVisit[]
+  active: string | null
+  onChange: (v: string | null) => void
+}) {
+  const counts = useMemo(() => {
+    const c: Record<string, number> = {}
+    for (const v of visits) {
+      const k = v.semantic_type ?? 'UNKNOWN'
+      c[k] = (c[k] ?? 0) + 1
+    }
+    return c
+  }, [visits])
+
+  const sortedItems = useMemo(
+    () => LEGEND_ORDER.filter((l) => (counts[l.type] ?? 0) > 0),
+    [counts]
+  )
+
+  if (sortedItems.length === 0) return null
+
+  return (
+    <div className="absolute bottom-2 left-2 z-[600] panel p-2 border-ink-700/50 flex flex-col gap-0.5 max-h-[60%] overflow-y-auto"
+      style={{ backgroundColor: 'rgba(13,17,23,0.85)', backdropFilter: 'blur(6px)' }}>
+      <div className="flex items-center justify-between px-1 pb-1 mb-0.5 border-b border-ink-800/60">
+        <span className="text-[9px] uppercase tracking-wider font-semibold text-ink-400">Légende</span>
+        {active && (
+          <button onClick={() => onChange(null)}
+            className="text-[9px] text-accent hover:underline">tout</button>
+        )}
+      </div>
+      {sortedItems.map((l) => {
+        const Icon = l.icon
+        const isActive = active === l.type
+        const isDimmed = active !== null && !isActive
+        return (
+          <button key={l.type}
+            onClick={() => onChange(isActive ? null : l.type)}
+            className={cn('flex items-center gap-2 px-1.5 py-1 rounded transition-all',
+              isActive ? 'bg-ink-800/80' : 'hover:bg-ink-800/50',
+              isDimmed && 'opacity-40')}>
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: l.hex }} />
+            <Icon size={10} style={{ color: l.hex }} />
+            <span className="text-[10px] flex-1 text-left" style={{ color: isActive ? l.hex : '#cbd5e1' }}>{l.label}</span>
+            <span className="text-[10px] font-mono text-ink-500">{(counts[l.type] ?? 0).toLocaleString('fr-CA')}</span>
+          </button>
+        )
+      })}
     </div>
   )
 }
