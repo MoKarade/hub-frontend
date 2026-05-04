@@ -7,8 +7,9 @@ import { useState, useMemo, useCallback, type ComponentType } from 'react'
 import {
   ChevronLeft, ChevronRight, MapPin, Home, Briefcase, Navigation,
   Sparkles, Car, Train, Plane, Footprints, Bike, Clock, Ruler, RefreshCw, Calendar,
+  CalendarDays, Camera,
 } from 'lucide-react'
-import { api, type LocationVisit, type LocationActivity } from '@/lib/api'
+import { api, type LocationVisit, type LocationActivity, type CalEventItem, type PhotoItem } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 const LocationMap = dynamic(
@@ -51,6 +52,21 @@ export function JourneeTab({ initialDate, defaultDate }: JourneeTabProps) {
   const { data: dayData, isLoading } = useSWR(
     ['day', date],
     () => api.locations.day(date)
+  )
+
+  // Cross-data : Calendar events ce jour-la
+  const dayStart = `${date}T00:00:00Z`
+  const dayEnd = `${date}T23:59:59Z`
+  const { data: calEvents } = useSWR(
+    ['day-calendar', date],
+    () => api.calendar.events({ since: dayStart, until: dayEnd, limit: 50 })
+      .catch(() => [] as CalEventItem[])
+  )
+  // Cross-data : Photos prises ce jour
+  const { data: dayPhotos } = useSWR(
+    ['day-photos', date],
+    () => api.photos.list({ since: dayStart, until: dayEnd, limit: 24 })
+      .catch(() => [] as PhotoItem[])
   )
 
   const shiftDay = useCallback((days: number) => {
@@ -111,6 +127,66 @@ export function JourneeTab({ initialDate, defaultDate }: JourneeTabProps) {
               ? `${dayData.summary.total_duration_minutes} min`
               : `${Math.floor(dayData.summary.total_duration_minutes / 60)}h${String(dayData.summary.total_duration_minutes % 60).padStart(2, '0')}`}
             hex="#c084fc" />
+        </div>
+      )}
+
+      {/* Calendar events + photos du jour */}
+      {((calEvents && calEvents.length > 0) || (dayPhotos && dayPhotos.length > 0)) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {calEvents && calEvents.length > 0 && (
+            <div className="panel p-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <CalendarDays size={12} className="text-blue-400" />
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-ink-400">
+                  Calendrier · {calEvents.length} événement{calEvents.length > 1 ? 's' : ''}
+                </span>
+              </div>
+              <div className="space-y-1 max-h-[120px] overflow-y-auto">
+                {calEvents.slice(0, 6).map((e) => (
+                  <div key={e.id} className="flex items-center gap-2 text-xs py-1 border-b border-ink-800/50 last:border-0">
+                    <span className="font-mono text-ink-400 shrink-0 w-12">
+                      {e.start_time ? new Date(e.start_time).toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                    </span>
+                    <span className="text-ink-200 truncate flex-1" title={e.summary ?? '(sans titre)'}>{e.summary ?? '(sans titre)'}</span>
+                    {e.location && (
+                      <span className="text-[10px] text-ink-500 truncate max-w-[40%]" title={e.location}>📍 {e.location}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {dayPhotos && dayPhotos.length > 0 && (
+            <div className="panel p-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Camera size={12} className="text-amber-400" />
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-ink-400">
+                  Photos · {dayPhotos.length} prise{dayPhotos.length > 1 ? 's' : ''}
+                </span>
+              </div>
+              <div className="grid grid-cols-6 gap-px bg-ink-950 rounded overflow-hidden h-20">
+                {dayPhotos.slice(0, 12).map((p) => (
+                  <div key={p.id} className="relative bg-ink-900">
+                    {p.base_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={`${p.base_url}=w120-h80-c`} alt=""
+                        className="w-full h-full object-cover" loading="lazy" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Camera size={10} className="text-ink-700" />
+                      </div>
+                    )}
+                    {p.is_video && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                        ▶
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

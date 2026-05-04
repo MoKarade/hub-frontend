@@ -409,6 +409,21 @@ export type RegionsResponse = {
   countries: CountryStat[]
 }
 
+export type Insight = {
+  title: string
+  description: string
+  icon: string
+  color: string
+  metric: string | null
+  metric_unit: string | null
+  cta_question: string | null
+}
+
+export type InsightsResponse = {
+  insights: Insight[]
+  generated_at: string
+}
+
 export type AddressLite = {
   lat_e4: number
   lng_e4: number
@@ -1170,6 +1185,7 @@ export const api = {
     addresses: (country?: string) =>
       request<AddressesIndexResponse>('/v1/locations/addresses' + qs({ country })),
     regions: () => request<RegionsResponse>('/v1/locations/regions'),
+    insights: () => request<InsightsResponse>('/v1/locations/insights'),
     geocodeBatch: (payload: { only_unknown?: boolean; max_cells?: number }) =>
       request<GeocodeBatchResponse>('/v1/locations/geocode-batch', {
         method: 'POST',

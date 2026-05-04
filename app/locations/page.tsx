@@ -103,6 +103,7 @@ export default function LocationsPage() {
         </header>
 
         <GlobalStatsStrip stats={stats ?? null} />
+        <InsightsBar />
         <Tabs items={TABS} defaultId="carte" />
 
         {activeTab === 'carte'   && <CarteTab latestDate={stats?.latest_date ?? null} earliestDate={stats?.earliest_date ?? null} />}
@@ -225,6 +226,29 @@ function CarteTab({ latestDate, earliestDate }: { latestDate: string | null; ear
   const [useCluster, setUseCluster] = useState(true)
   const [semanticFilter, setSemanticFilter] = useState<string | null>(null)
   const [fullscreen, setFullscreen]         = useState(false)
+  const [splitMode, setSplitMode]   = useState(false)
+  // Split B : meme periode l'an dernier par defaut
+  const [endDateB, setEndDateB] = useState<string>(() => {
+    const d = new Date(safeEnd); d.setFullYear(d.getFullYear() - 1)
+    return d.toISOString().slice(0, 10)
+  })
+  const [startDateB, setStartDateB] = useState<string>(() => {
+    const d = new Date(safeEnd); d.setFullYear(d.getFullYear() - 1); d.setMonth(d.getMonth() - 2)
+    return d.toISOString().slice(0, 10)
+  })
+
+  const { data: visitsB } = useSWR(
+    splitMode && mode === 'visits' ? ['loc-visits-map-B', startDateB, endDateB] : null,
+    () => api.locations.visits.list({ start_date: startDateB, end_date: endDateB, limit: limits.visits })
+  )
+  const { data: pointsB } = useSWR(
+    splitMode && mode !== 'visits' ? ['loc-points-map-B', startDateB, endDateB, mode] : null,
+    () => api.locations.points.list({
+      start_date: startDateB, end_date: endDateB,
+      limit: limits[mode as 'heatmap' | 'trajectory' | 'points'],
+      source: 'google_timeline',
+    })
+  )
 
   const setPreset = useCallback((preset: 'all' | '1M' | '3M' | '6M' | '1Y') => {
     setEndDate(safeEnd)
@@ -358,9 +382,9 @@ function CarteTab({ latestDate, earliestDate }: { latestDate: string | null; ear
         {/* Tile selector — top left */}
         <TileSelector value={tileStyle} onChange={setTileStyle} />
 
-        {/* Cluster toggle — top right */}
-        {mode === 'visits' && (
-          <div className="absolute top-2 right-[170px] z-[600]">
+        {/* Cluster toggle + Split toggle — top right */}
+        <div className="absolute top-2 right-[170px] z-[600] flex gap-1">
+          {mode === 'visits' && (
             <button
               onClick={() => setUseCluster(!useCluster)}
               className={cn('panel px-2.5 py-1.5 text-[10px] font-semibold border flex items-center gap-1 transition-colors',
@@ -368,8 +392,16 @@ function CarteTab({ latestDate, earliestDate }: { latestDate: string | null; ear
               <Crosshair size={11} />
               {useCluster ? 'Cluster ON' : 'Cluster OFF'}
             </button>
-          </div>
-        )}
+          )}
+          <button
+            onClick={() => setSplitMode(!splitMode)}
+            title="Comparer 2 périodes côte-à-côte"
+            className={cn('panel px-2.5 py-1.5 text-[10px] font-semibold border flex items-center gap-1 transition-colors',
+              splitMode ? 'border-amber-500/50 text-amber-400' : 'border-ink-700 text-ink-400 hover:border-ink-500')}>
+            ⚖
+            {splitMode ? 'Split ON' : 'Split'}
+          </button>
+        </div>
 
         {/* Fullscreen toggle — top right */}
         <button onClick={() => setFullscreen(!fullscreen)}
@@ -379,19 +411,48 @@ function CarteTab({ latestDate, earliestDate }: { latestDate: string | null; ear
           <span className="hidden sm:inline">{fullscreen ? 'Réduire' : 'Plein écran'}</span>
         </button>
 
-        <LocationMap
-          mode={mode}
-          visits={mode === 'visits' ? (visits ?? []) : []}
-          points={mode !== 'visits' ? (points ?? []) : []}
-          onMapClick={(lat, lng) => setClickPos({ lat, lng })}
-          highlightLat={clickPos?.lat}
-          highlightLng={clickPos?.lng}
-          highlightRadius={200}
-          tileStyle={tileStyle}
-          cluster={useCluster}
-          semanticFilter={semanticFilter}
-          addressLookup={addressLookup}
-        />
+        {!splitMode ? (
+          <LocationMap
+            mode={mode}
+            visits={mode === 'visits' ? (visits ?? []) : []}
+            points={mode !== 'visits' ? (points ?? []) : []}
+            onMapClick={(lat, lng) => setClickPos({ lat, lng })}
+            highlightLat={clickPos?.lat}
+            highlightLng={clickPos?.lng}
+            highlightRadius={200}
+            tileStyle={tileStyle}
+            cluster={useCluster}
+            semanticFilter={semanticFilter}
+            addressLookup={addressLookup}
+          />
+        ) : (
+          <div className="grid grid-cols-2 gap-px bg-accent/40 h-full">
+            <div className="relative bg-ink-950">
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[600] panel px-2.5 py-1 text-[10px] font-mono border-accent/40 text-accent">
+                A · {startDate} → {endDate}
+              </div>
+              <LocationMap mode={mode}
+                visits={mode === 'visits' ? (visits ?? []) : []}
+                points={mode !== 'visits' ? (points ?? []) : []}
+                tileStyle={tileStyle} cluster={useCluster}
+                semanticFilter={semanticFilter} addressLookup={addressLookup} />
+            </div>
+            <div className="relative bg-ink-950">
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[600] panel px-2.5 py-1 text-[10px] font-mono border-amber-500/40 text-amber-400 flex items-center gap-2">
+                B · <input type="date" value={startDateB} onChange={(e) => setStartDateB(e.target.value)}
+                  className="bg-ink-800 border border-ink-700 rounded px-1 py-0 text-[10px] font-mono w-24" />
+                →
+                <input type="date" value={endDateB} onChange={(e) => setEndDateB(e.target.value)}
+                  className="bg-ink-800 border border-ink-700 rounded px-1 py-0 text-[10px] font-mono w-24" />
+              </div>
+              <LocationMap mode={mode}
+                visits={mode === 'visits' ? (visitsB ?? []) : []}
+                points={mode !== 'visits' ? (pointsB ?? []) : []}
+                tileStyle={tileStyle} cluster={useCluster}
+                semanticFilter={semanticFilter} addressLookup={addressLookup} />
+            </div>
+          </div>
+        )}
 
         {/* Legende interactive — bottom left */}
         {mode === 'visits' && visits && visits.length > 0 && (
@@ -411,11 +472,25 @@ function CarteTab({ latestDate, earliestDate }: { latestDate: string | null; ear
         )}
       </div>
 
-      {/* Mode hint */}
+      {/* Mode hint + heatmap year slider */}
       {mode === 'heatmap' && (
-        <p className="text-[10px] text-ink-500 font-mono">
-          🔥 Heatmap : densité des points GPS. Plus c'est chaud (jaune/orange), plus tu y as passé de temps.
-        </p>
+        <>
+          <HeatmapYearSlider
+            startYear={parseInt(safeStart.slice(0, 4))}
+            endYear={parseInt(safeEnd.slice(0, 4))}
+            currentStart={startDate}
+            currentEnd={endDate}
+            onChangeYear={(y) => {
+              setStartDate(`${y}-01-01`)
+              setEndDate(`${y}-12-31`)
+            }}
+            onAllYears={() => { setStartDate(safeStart); setEndDate(safeEnd) }}
+          />
+          <p className="text-[10px] text-ink-500 font-mono">
+            🔥 Heatmap : densité des points GPS. Plus c'est chaud (jaune/orange), plus tu y as passé de temps.
+            Slider = filtre année par année pour voir l'évolution dans le temps.
+          </p>
+        </>
       )}
       {mode === 'trajectory' && (
         <p className="text-[10px] text-ink-500 font-mono">
@@ -1175,6 +1250,95 @@ function LieuxTab() {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─── InsightsBar (AI proactive) ───────────────────────────────────────────────
+
+function InsightsBar() {
+  const { data: insights } = useSWR('insights', () => api.locations.insights())
+  if (!insights || insights.insights.length === 0) return null
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+      {insights.insights.slice(0, 5).map((i, idx) => (
+        <motion.div key={`${i.title}-${idx}`}
+          initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: idx * 0.05 }}
+          className="panel p-2.5 group hover:scale-[1.02] transition-transform cursor-default"
+          style={{ borderColor: i.color + '40' }}>
+          <div className="flex items-start gap-2">
+            <div className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 text-base"
+              style={{ backgroundColor: i.color + '22', color: i.color }}>
+              <Sparkles size={13} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] uppercase tracking-wider font-semibold text-ink-400 truncate">
+                {i.title}
+              </div>
+              {i.metric !== null && (
+                <div className="text-base font-bold font-mono leading-none mt-0.5"
+                  style={{ color: i.color }}>
+                  {i.metric}{i.metric_unit && <span className="text-[10px] ml-0.5">{i.metric_unit}</span>}
+                </div>
+              )}
+              <div className="text-[10px] text-ink-500 mt-1 line-clamp-2" title={i.description}>
+                {i.description}
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      ))}
+    </div>
+  )
+}
+
+// ─── HeatmapYearSlider ────────────────────────────────────────────────────────
+
+function HeatmapYearSlider({ startYear, endYear, currentStart, currentEnd, onChangeYear, onAllYears }: {
+  startYear: number; endYear: number
+  currentStart: string; currentEnd: string
+  onChangeYear: (y: number) => void
+  onAllYears: () => void
+}) {
+  const years: number[] = []
+  for (let y = startYear; y <= endYear; y++) years.push(y)
+
+  // Detecte si on est en mode "year filter" (start = Y-01-01, end = Y-12-31)
+  const startY = parseInt(currentStart.slice(0, 4))
+  const endY = parseInt(currentEnd.slice(0, 4))
+  const isAllYears = startY === startYear && endY === endYear
+  const selectedYear = (!isAllYears && startY === endY) ? startY : null
+
+  return (
+    <div className="panel p-3 flex items-center gap-2 flex-wrap">
+      <span className="text-[10px] uppercase tracking-wider font-semibold text-ink-400">
+        Année
+      </span>
+      <button onClick={onAllYears}
+        className={cn('px-2.5 py-1 text-xs font-mono rounded transition-colors',
+          isAllYears ? 'bg-accent text-ink-900 font-bold'
+                     : 'bg-ink-800 border border-ink-700 text-ink-400 hover:border-ink-500')}>
+        TOUT
+      </button>
+      <div className="flex-1 flex items-center gap-1 min-w-[280px]">
+        {years.map((y) => {
+          const active = selectedYear === y
+          return (
+            <button key={y} onClick={() => onChangeYear(y)}
+              className={cn('flex-1 min-w-0 py-1 text-[10px] font-mono rounded transition-all',
+                active ? 'bg-amber-500 text-ink-900 font-bold scale-110'
+                       : 'bg-ink-800 border border-ink-700 text-ink-400 hover:border-amber-500/50 hover:text-amber-400')}>
+              {String(y).slice(2)}
+            </button>
+          )
+        })}
+      </div>
+      {selectedYear && (
+        <span className="text-[10px] font-mono text-amber-400">
+          Filtré sur {selectedYear}
+        </span>
+      )}
     </div>
   )
 }

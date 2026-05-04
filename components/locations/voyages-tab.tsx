@@ -6,9 +6,9 @@ import dynamic from 'next/dynamic'
 import { useState, useMemo } from 'react'
 import {
   MapPin, Compass, Plane, Calendar, Ruler, Hash, RefreshCw, ChevronRight,
-  Settings, Globe, Clock, Search, X,
+  Settings, Globe, Clock, Search, X, Camera,
 } from 'lucide-react'
-import { api, type Trip, type TripNote } from '@/lib/api'
+import { api, type Trip, type TripNote, type PhotoItem } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { TripNoteButton } from '@/components/locations/trip-note-editor'
 
@@ -288,6 +288,17 @@ export function VoyagesTab({ onOpenDay }: VoyagesTabProps) {
 function TripCard({ trip, idx, note, onOpenDay }: {
   trip: Trip; idx: number; note?: TripNote | null; onOpenDay?: (date: string) => void
 }) {
+  // Photos prises pendant le voyage (best-effort)
+  const { data: photos } = useSWR(
+    ['trip-photos', trip.start_date, trip.end_date],
+    () => api.photos.list({
+      since: `${trip.start_date}T00:00:00Z`,
+      until: `${trip.end_date}T23:59:59Z`,
+      limit: 6,
+    }).catch(() => [] as PhotoItem[])
+  )
+  const photoCount = photos?.length ?? 0
+
   const start = new Date(trip.start_date), end = new Date(trip.end_date)
   const sameYear = start.getFullYear() === end.getFullYear()
   const dateLabel = sameYear
@@ -323,7 +334,32 @@ function TripCard({ trip, idx, note, onOpenDay }: {
           style={{ backgroundColor: 'rgba(13,17,23,0.7)', color: isInternational ? '#5fb3f4' : '#5cdb95', borderLeft: `2px solid ${isInternational ? '#5fb3f4' : '#5cdb95'}` }}>
           {isInternational ? <><Plane size={10} className="inline mr-1" />International</> : <><Globe size={10} className="inline mr-1" />Domestique</>}
         </div>
+        {photoCount > 0 && (
+          <div className="absolute top-2 right-2 px-2 py-0.5 rounded text-[10px] font-mono font-bold backdrop-blur-sm flex items-center gap-1"
+            style={{ backgroundColor: 'rgba(13,17,23,0.85)', color: '#fbbf24', border: '1px solid #fbbf2440' }}>
+            <Camera size={10} /> {photoCount}
+          </div>
+        )}
       </div>
+
+      {/* Photo strip si photos */}
+      {photos && photos.length > 0 && (
+        <div className="flex gap-px h-12 overflow-hidden bg-ink-950 pointer-events-none">
+          {photos.slice(0, 6).map((p) => (
+            <div key={p.id} className="flex-1 relative bg-ink-900">
+              {p.base_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={`${p.base_url}=w120-h60-c`} alt=""
+                  className="w-full h-full object-cover" loading="lazy" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <Camera size={11} className="text-ink-700" />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Body */}
       <div className="p-3 flex flex-col gap-2 flex-1">
