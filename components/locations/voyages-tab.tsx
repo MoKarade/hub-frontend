@@ -8,7 +8,7 @@ import {
   MapPin, Compass, Plane, Calendar, Ruler, Hash, RefreshCw, ChevronRight,
   Settings, Globe, Clock, Search, X, Camera,
 } from 'lucide-react'
-import { api, type Trip, type TripNote, type PhotoItem } from '@/lib/api'
+import { api, photoThumbUrl, type Trip, type TripNote, type PhotoItem } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { TripNoteButton } from '@/components/locations/trip-note-editor'
 
@@ -344,18 +344,13 @@ function TripCard({ trip, idx, note, onOpenDay }: {
 
       {/* Photo strip si photos */}
       {photos && photos.length > 0 && (
-        <div className="flex gap-px h-12 overflow-hidden bg-ink-950 pointer-events-none">
+        <div className="flex gap-px h-14 overflow-hidden bg-ink-950 pointer-events-none">
           {photos.slice(0, 6).map((p) => (
             <div key={p.id} className="flex-1 relative bg-ink-900">
-              {p.base_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={`${p.base_url}=w120-h60-c`} alt=""
-                  className="w-full h-full object-cover" loading="lazy" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <Camera size={11} className="text-ink-700" />
-                </div>
-              )}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={photoThumbUrl(p.media_id, 160)} alt={p.filename ?? ''}
+                className="w-full h-full object-cover" loading="lazy"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
             </div>
           ))}
         </div>

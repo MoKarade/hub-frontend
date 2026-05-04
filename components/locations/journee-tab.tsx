@@ -4,12 +4,13 @@ import { motion, AnimatePresence } from 'framer-motion'
 import useSWR from 'swr'
 import dynamic from 'next/dynamic'
 import { useState, useMemo, useCallback, type ComponentType } from 'react'
+import { X } from 'lucide-react'
 import {
   ChevronLeft, ChevronRight, MapPin, Home, Briefcase, Navigation,
   Sparkles, Car, Train, Plane, Footprints, Bike, Clock, Ruler, RefreshCw, Calendar,
   CalendarDays, Camera,
 } from 'lucide-react'
-import { api, type LocationVisit, type LocationActivity, type CalEventItem, type PhotoItem } from '@/lib/api'
+import { api, photoThumbUrl, type LocationVisit, type LocationActivity, type CalEventItem, type PhotoItem } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 const LocationMap = dynamic(
@@ -134,58 +135,10 @@ export function JourneeTab({ initialDate, defaultDate }: JourneeTabProps) {
       {((calEvents && calEvents.length > 0) || (dayPhotos && dayPhotos.length > 0)) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {calEvents && calEvents.length > 0 && (
-            <div className="panel p-3">
-              <div className="flex items-center gap-1.5 mb-2">
-                <CalendarDays size={12} className="text-blue-400" />
-                <span className="text-[10px] uppercase tracking-wider font-semibold text-ink-400">
-                  Calendrier · {calEvents.length} événement{calEvents.length > 1 ? 's' : ''}
-                </span>
-              </div>
-              <div className="space-y-1 max-h-[120px] overflow-y-auto">
-                {calEvents.slice(0, 6).map((e) => (
-                  <div key={e.id} className="flex items-center gap-2 text-xs py-1 border-b border-ink-800/50 last:border-0">
-                    <span className="font-mono text-ink-400 shrink-0 w-12">
-                      {e.start_time ? new Date(e.start_time).toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
-                    </span>
-                    <span className="text-ink-200 truncate flex-1" title={e.summary ?? '(sans titre)'}>{e.summary ?? '(sans titre)'}</span>
-                    {e.location && (
-                      <span className="text-[10px] text-ink-500 truncate max-w-[40%]" title={e.location}>📍 {e.location}</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
+            <CalendarPanel events={calEvents} date={date} />
           )}
-
           {dayPhotos && dayPhotos.length > 0 && (
-            <div className="panel p-3">
-              <div className="flex items-center gap-1.5 mb-2">
-                <Camera size={12} className="text-amber-400" />
-                <span className="text-[10px] uppercase tracking-wider font-semibold text-ink-400">
-                  Photos · {dayPhotos.length} prise{dayPhotos.length > 1 ? 's' : ''}
-                </span>
-              </div>
-              <div className="grid grid-cols-6 gap-px bg-ink-950 rounded overflow-hidden h-20">
-                {dayPhotos.slice(0, 12).map((p) => (
-                  <div key={p.id} className="relative bg-ink-900">
-                    {p.base_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={`${p.base_url}=w120-h80-c`} alt=""
-                        className="w-full h-full object-cover" loading="lazy" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Camera size={10} className="text-ink-700" />
-                      </div>
-                    )}
-                    {p.is_video && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                        ▶
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
+            <PhotosPanel photos={dayPhotos} date={date} />
           )}
         </div>
       )}
@@ -332,6 +285,243 @@ function TimelineEvent({ event, idx }: {
     )
   }
   return null
+}
+
+// ─── CalendarPanel + EventDetailModal ─────────────────────────────────────────
+
+function CalendarPanel({ events, date }: { events: CalEventItem[]; date: string }) {
+  const [selected, setSelected] = useState<CalEventItem | null>(null)
+  return (
+    <>
+      <div className="panel p-3">
+        <div className="flex items-center gap-1.5 mb-2">
+          <CalendarDays size={12} className="text-blue-400" />
+          <span className="text-[10px] uppercase tracking-wider font-semibold text-ink-400">
+            Calendrier · {events.length} événement{events.length > 1 ? 's' : ''}
+          </span>
+          <span className="ml-auto text-[10px] font-mono text-ink-600">
+            {new Date(date + 'T00:00:00').toLocaleDateString('fr-CA', { weekday: 'short', day: 'numeric', month: 'short' })}
+          </span>
+        </div>
+        <div className="space-y-1 max-h-[200px] overflow-y-auto">
+          {events.map((e) => {
+            const start = e.start_at ? new Date(e.start_at) : null
+            const end = e.end_at ? new Date(e.end_at) : null
+            const isAllDay = e.all_day || (!start || (start.getUTCHours() === 0 && start.getUTCMinutes() === 0 && end?.getUTCHours() === 0))
+            return (
+              <button key={e.id}
+                onClick={() => setSelected(e)}
+                className="w-full text-left flex items-start gap-2 text-xs py-1.5 px-1.5 rounded border-l-2 border-blue-400/30 hover:border-blue-400 hover:bg-ink-800/50 transition-colors group">
+                <span className="font-mono text-blue-400/80 shrink-0 w-14 group-hover:text-blue-300">
+                  {isAllDay ? 'jour' : start
+                    ? start.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' })
+                    : '--:--'}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-ink-200 truncate group-hover:text-ink-100">{e.summary ?? '(sans titre)'}</div>
+                  {e.location && (
+                    <div className="text-[10px] text-ink-500 truncate">📍 {e.location}</div>
+                  )}
+                  {!isAllDay && start && end && (
+                    <div className="text-[10px] text-ink-600 font-mono">
+                      → {end.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' })}
+                      {' '}({Math.round((end.getTime() - start.getTime()) / 60000)}min)
+                    </div>
+                  )}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {selected && <EventDetailModal event={selected} onClose={() => setSelected(null)} />}
+      </AnimatePresence>
+    </>
+  )
+}
+
+function EventDetailModal({ event, onClose }: { event: CalEventItem; onClose: () => void }) {
+  const start = event.start_time ? new Date(event.start_time) : null
+  const end = event.end_time ? new Date(event.end_time) : null
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <motion.div
+        initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+        className="panel w-full max-w-md p-5 space-y-3 max-h-[85vh] overflow-y-auto">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <div className="text-[10px] uppercase tracking-wider font-semibold text-blue-400 mb-1">
+              📅 Événement Calendar
+            </div>
+            <h3 className="text-base font-bold text-ink-100">{event.summary ?? '(sans titre)'}</h3>
+          </div>
+          <button onClick={onClose} className="text-ink-500 hover:text-ink-200">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="space-y-2 text-xs">
+          {start && (
+            <div className="flex items-start gap-2">
+              <CalendarDays size={11} className="text-blue-400 mt-0.5" />
+              <div className="font-mono text-ink-300">
+                {start.toLocaleDateString('fr-CA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                <br />
+                {start.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' })}
+                {end && <> → {end.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' })}</>}
+              </div>
+            </div>
+          )}
+          {event.location && (
+            <div className="flex items-start gap-2">
+              <MapPin size={11} className="text-amber-400 mt-0.5" />
+              <div className="text-ink-300">{event.location}</div>
+            </div>
+          )}
+          {event.attendees && event.attendees.length > 0 && (
+            <div className="pt-2 border-t border-ink-800/60">
+              <div className="text-[10px] uppercase tracking-wider font-semibold text-ink-400 mb-1">
+                Participants ({event.attendees.length})
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {event.attendees.slice(0, 12).map((a, i) => (
+                  <span key={i} className="px-1.5 py-0.5 rounded bg-ink-800 border border-ink-700 text-[10px] font-mono text-ink-300">
+                    {a}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {event.calendar_id && (
+            <div className="pt-2 border-t border-ink-800/60 text-[10px] font-mono text-ink-500">
+              Calendrier : {event.calendar_id}
+            </div>
+          )}
+          {event.html_link && (
+            <a href={event.html_link} target="_blank" rel="noopener noreferrer"
+              className="block text-center mt-3 px-3 py-1.5 rounded text-xs font-semibold border border-blue-500/40 text-blue-400 hover:bg-blue-500/10 transition-colors">
+              Ouvrir dans Google Calendar →
+            </a>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+// ─── PhotosPanel + Lightbox ───────────────────────────────────────────────────
+
+function PhotosPanel({ photos, date }: { photos: PhotoItem[]; date: string }) {
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null)
+  return (
+    <>
+      <div className="panel p-3">
+        <div className="flex items-center gap-1.5 mb-2">
+          <Camera size={12} className="text-amber-400" />
+          <span className="text-[10px] uppercase tracking-wider font-semibold text-ink-400">
+            Photos · {photos.length} prise{photos.length > 1 ? 's' : ''}
+          </span>
+          <span className="ml-auto text-[10px] font-mono text-ink-600">
+            click pour agrandir
+          </span>
+        </div>
+        <div className="grid grid-cols-6 gap-1 bg-ink-950/50 rounded overflow-hidden">
+          {photos.slice(0, 24).map((p, i) => (
+            <button key={p.id} onClick={() => setLightboxIdx(i)}
+              className="relative aspect-square bg-ink-900 hover:scale-105 transition-transform group">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={photoThumbUrl(p.media_id, 200)} alt={p.filename ?? ''}
+                className="w-full h-full object-cover" loading="lazy"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+              {p.is_video && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-white text-xs">
+                  ▶
+                </div>
+              )}
+              <div className="absolute inset-0 ring-1 ring-inset ring-transparent group-hover:ring-accent transition-colors" />
+            </button>
+          ))}
+        </div>
+        {photos.length > 24 && (
+          <div className="text-[10px] text-ink-600 mt-1 text-center">
+            … et {photos.length - 24} autre{photos.length - 24 > 1 ? 's' : ''}
+          </div>
+        )}
+      </div>
+
+      <AnimatePresence>
+        {lightboxIdx !== null && (
+          <PhotoLightbox photos={photos} idx={lightboxIdx}
+            onChange={setLightboxIdx} onClose={() => setLightboxIdx(null)} date={date} />
+        )}
+      </AnimatePresence>
+    </>
+  )
+}
+
+function PhotoLightbox({ photos, idx, onChange, onClose, date }: {
+  photos: PhotoItem[]; idx: number
+  onChange: (i: number | null) => void
+  onClose: () => void; date: string
+}) {
+  const photo = photos[idx]
+  const next = () => onChange(idx + 1 < photos.length ? idx + 1 : 0)
+  const prev = () => onChange(idx - 1 >= 0 ? idx - 1 : photos.length - 1)
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/95 p-4"
+      onClick={onClose}
+    >
+      <button onClick={(e) => { e.stopPropagation(); onClose() }}
+        className="absolute top-4 right-4 z-10 text-ink-300 hover:text-white p-2 rounded-full bg-black/50 hover:bg-black/80">
+        <X size={20} />
+      </button>
+      {photos.length > 1 && (
+        <>
+          <button onClick={(e) => { e.stopPropagation(); prev() }}
+            className="absolute left-4 z-10 text-ink-300 hover:text-white p-3 text-3xl rounded-full bg-black/50 hover:bg-black/80">
+            ←
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); next() }}
+            className="absolute right-4 z-10 text-ink-300 hover:text-white p-3 text-3xl rounded-full bg-black/50 hover:bg-black/80">
+            →
+          </button>
+        </>
+      )}
+      <motion.div
+        key={photo.id}
+        initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+        className="relative max-w-[95vw] max-h-[90vh] flex flex-col items-center"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={photoThumbUrl(photo.media_id, 1600)} alt={photo.filename ?? ''}
+          className="max-w-full max-h-[80vh] object-contain rounded" />
+        <div className="mt-3 text-center text-xs text-ink-300 font-mono space-y-0.5">
+          <div className="text-ink-100 text-sm">{photo.filename ?? '(sans nom)'}</div>
+          <div className="text-ink-500">
+            {new Date(photo.creation_time).toLocaleString('fr-CA', { dateStyle: 'long', timeStyle: 'short' })}
+          </div>
+          {photo.width && photo.height && (
+            <div className="text-ink-600">{photo.width}×{photo.height}px</div>
+          )}
+          {photo.camera_make && (
+            <div className="text-ink-600">📷 {photo.camera_make} {photo.camera_model ?? ''}</div>
+          )}
+          {photo.location_name && (
+            <div className="text-amber-400">📍 {photo.location_name}</div>
+          )}
+          <div className="text-ink-700 text-[10px] pt-1">{idx + 1} / {photos.length} · {date}</div>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
 }
 
 function DayMap({ dayData }: { dayData: { points: import('@/lib/api').LocationPoint[]; visits: import('@/lib/api').LocationVisit[] } }) {

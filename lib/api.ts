@@ -18,6 +18,14 @@ export function getBaseUrl(): string {
   return `${protocol}//${host}/api`
 }
 
+/**
+ * Construit l'URL d'un thumbnail Google Photos via le proxy backend.
+ * Le base_url Google expire — il faut passer par /v1/photos/thumb qui refait le fetch.
+ */
+export function photoThumbUrl(mediaId: string, size = 200): string {
+  return `${getBaseUrl()}/v1/photos/thumb/${encodeURIComponent(mediaId)}?size=${size}`
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message)

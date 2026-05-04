@@ -958,54 +958,7 @@ function StatsTab() {
       )}
 
       {/* ── Regions visited (countries / cities) ───────────────────────── */}
-      {regions && regions.countries_count > 0 && (
-        <div className="panel p-4 col-span-full">
-          <div className="flex items-center gap-1.5 mb-3 flex-wrap">
-            <Globe size={12} className="text-sky-400" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-400">
-              Pays & villes visités
-            </span>
-            <div className="flex items-center gap-3 ml-auto text-xs">
-              <span className="font-mono">
-                <span className="text-sky-400 text-base font-bold">{regions.countries_count}</span>
-                <span className="text-ink-500 ml-1">pays</span>
-              </span>
-              <span className="font-mono">
-                <span className="text-amber-400 text-base font-bold">{regions.cities_count}</span>
-                <span className="text-ink-500 ml-1">villes</span>
-              </span>
-              <span className="text-[10px] font-mono text-ink-600">
-                ({regions.cells_geocoded.toLocaleString('fr-CA')} cellules géocodées)
-              </span>
-            </div>
-          </div>
-
-          {/* Top pays par visites */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-            {regions.countries.slice(0, 12).map((c, i) => (
-              <motion.div key={c.country}
-                initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.03 }}
-                className="p-2.5 rounded-md bg-ink-800/40 border border-ink-700/40 hover:border-ink-600 transition-colors">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-mono uppercase text-ink-500">
-                    {c.country_code ?? '?'}
-                  </span>
-                  <span className="text-xs font-semibold text-ink-200 truncate">{c.country}</span>
-                </div>
-                <div className="text-[10px] text-ink-500 font-mono mt-1">
-                  <span className="text-accent">{c.visit_count.toLocaleString('fr-CA')}</span> visites · {c.cities.length} ville{c.cities.length > 1 ? 's' : ''}
-                </div>
-                {c.cities.length > 0 && (
-                  <div className="text-[10px] text-ink-400 mt-1 truncate" title={c.cities.join(', ')}>
-                    {c.cities.slice(0, 4).join(' · ')}{c.cities.length > 4 ? ` +${c.cities.length - 4}` : ''}
-                  </div>
-                )}
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      )}
+      {regions && regions.countries_count > 0 && <RegionsPanel regions={regions} />}
 
       {/* ── Year-over-year comparison ──────────────────────────────────── */}
       {yearComp && yearComp.years.length >= 2 && (
@@ -1254,43 +1207,234 @@ function LieuxTab() {
   )
 }
 
-// ─── InsightsBar (AI proactive) ───────────────────────────────────────────────
+// ─── InsightsBar (AI proactive, clickable) ────────────────────────────────────
 
 function InsightsBar() {
   const { data: insights } = useSWR('insights', () => api.locations.insights())
+  const [selected, setSelected] = useState<import('@/lib/api').Insight | null>(null)
   if (!insights || insights.insights.length === 0) return null
+
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-      {insights.insights.slice(0, 5).map((i, idx) => (
-        <motion.div key={`${i.title}-${idx}`}
-          initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: idx * 0.05 }}
-          className="panel p-2.5 group hover:scale-[1.02] transition-transform cursor-default"
-          style={{ borderColor: i.color + '40' }}>
-          <div className="flex items-start gap-2">
-            <div className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 text-base"
-              style={{ backgroundColor: i.color + '22', color: i.color }}>
-              <Sparkles size={13} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[10px] uppercase tracking-wider font-semibold text-ink-400 truncate">
-                {i.title}
+    <>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+        {insights.insights.slice(0, 5).map((i, idx) => (
+          <motion.button key={`${i.title}-${idx}`}
+            initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: idx * 0.05 }}
+            onClick={() => setSelected(i)}
+            whileHover={{ scale: 1.02, y: -2 }}
+            className="panel p-2.5 group transition-all text-left"
+            style={{ borderColor: i.color + '40' }}>
+            <div className="flex items-start gap-2">
+              <div className="w-7 h-7 rounded-md flex items-center justify-center shrink-0"
+                style={{ backgroundColor: i.color + '22', color: i.color }}>
+                <Sparkles size={13} />
               </div>
-              {i.metric !== null && (
-                <div className="text-base font-bold font-mono leading-none mt-0.5"
-                  style={{ color: i.color }}>
-                  {i.metric}{i.metric_unit && <span className="text-[10px] ml-0.5">{i.metric_unit}</span>}
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] uppercase tracking-wider font-semibold text-ink-400 truncate">
+                  {i.title}
+                </div>
+                {i.metric !== null && (
+                  <div className="text-base font-bold font-mono leading-none mt-0.5"
+                    style={{ color: i.color }}>
+                    {i.metric}{i.metric_unit && <span className="text-[10px] ml-0.5">{i.metric_unit}</span>}
+                  </div>
+                )}
+                <div className="text-[10px] text-ink-500 mt-1 line-clamp-2">
+                  {i.description}
+                </div>
+              </div>
+            </div>
+          </motion.button>
+        ))}
+      </div>
+
+      <AnimatePresence>
+        {selected && <InsightModal insight={selected} onClose={() => setSelected(null)} />}
+      </AnimatePresence>
+    </>
+  )
+}
+
+function InsightModal({ insight, onClose }: { insight: import('@/lib/api').Insight; onClose: () => void }) {
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+        className="panel w-full max-w-md p-5 space-y-3"
+        style={{ borderColor: insight.color + '60' }}>
+        <div className="flex items-start gap-3">
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+            style={{ backgroundColor: insight.color + '22' }}>
+            <Sparkles size={20} style={{ color: insight.color }} />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-base font-bold text-ink-100">{insight.title}</h3>
+            {insight.metric !== null && (
+              <div className="text-2xl font-bold font-mono leading-none mt-1" style={{ color: insight.color }}>
+                {insight.metric}{insight.metric_unit && <span className="text-sm ml-1">{insight.metric_unit}</span>}
+              </div>
+            )}
+          </div>
+          <button onClick={onClose} className="text-ink-500 hover:text-ink-200">
+            <X size={16} />
+          </button>
+        </div>
+        <p className="text-sm text-ink-300 leading-relaxed">{insight.description}</p>
+        {insight.cta_question && (
+          <div className="pt-3 border-t border-ink-800/60">
+            <div className="text-[10px] uppercase tracking-wider font-semibold text-ink-400 mb-1.5">
+              Question suggérée
+            </div>
+            <a href={`/?q=${encodeURIComponent(insight.cta_question)}`}
+              className="block px-3 py-2 rounded-md bg-ink-800 border border-ink-700 hover:border-accent/50 transition-colors text-sm text-ink-200 font-mono">
+              💬 {insight.cta_question}
+              <span className="block text-[10px] text-accent mt-1">→ Demander à l'IA</span>
+            </a>
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
+  )
+}
+
+// ─── RegionsPanel (avec drill-down par pays) ──────────────────────────────────
+
+function RegionsPanel({ regions }: { regions: import('@/lib/api').RegionsResponse }) {
+  const [selected, setSelected] = useState<import('@/lib/api').CountryStat | null>(null)
+
+  return (
+    <>
+      <div className="panel p-4 col-span-full">
+        <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+          <Globe size={12} className="text-sky-400" />
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-400">
+            Pays & villes visités
+          </span>
+          <div className="flex items-center gap-3 ml-auto text-xs">
+            <span className="font-mono">
+              <span className="text-sky-400 text-base font-bold">{regions.countries_count}</span>
+              <span className="text-ink-500 ml-1">pays</span>
+            </span>
+            <span className="font-mono">
+              <span className="text-amber-400 text-base font-bold">{regions.cities_count}</span>
+              <span className="text-ink-500 ml-1">villes</span>
+            </span>
+            <span className="text-[10px] font-mono text-ink-600">
+              ({regions.cells_geocoded.toLocaleString('fr-CA')} cellules)
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+          {regions.countries.slice(0, 16).map((c, i) => (
+            <motion.button key={c.country}
+              initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.02 }}
+              onClick={() => setSelected(c)}
+              whileHover={{ y: -2 }}
+              className="p-2.5 rounded-md bg-ink-800/40 border border-ink-700/40 hover:border-sky-400/50 transition-colors text-left">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-mono uppercase text-ink-500 w-6">{c.country_code ?? '?'}</span>
+                <span className="text-xs font-semibold text-ink-200 truncate flex-1">{c.country}</span>
+                <span className="text-[10px] font-mono text-sky-400">{c.cities.length} ville{c.cities.length > 1 ? 's' : ''}</span>
+              </div>
+              <div className="text-[10px] text-ink-500 font-mono mt-1">
+                <span className="text-accent">{c.visit_count.toLocaleString('fr-CA')}</span> visites
+                <span className="ml-1.5 text-ink-600">click pour villes →</span>
+              </div>
+              {c.cities.length > 0 && (
+                <div className="text-[10px] text-ink-400 mt-1 truncate">
+                  {c.cities.slice(0, 3).join(' · ')}{c.cities.length > 3 ? ' …' : ''}
                 </div>
               )}
-              <div className="text-[10px] text-ink-500 mt-1 line-clamp-2" title={i.description}>
-                {i.description}
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {selected && <CountryDrillDown country={selected} onClose={() => setSelected(null)} />}
+      </AnimatePresence>
+    </>
+  )
+}
+
+function CountryDrillDown({ country, onClose }: {
+  country: import('@/lib/api').CountryStat; onClose: () => void
+}) {
+  // Charge les addresses du pays pour ranker les villes par fréquence
+  const { data } = useSWR(['country-cities', country.country_code], () =>
+    api.locations.addresses(country.country_code ?? undefined))
+
+  const cityCounts = useMemo(() => {
+    if (!data) return []
+    const m = new Map<string, number>()
+    for (const a of data.addresses) {
+      if (!a.city) continue
+      m.set(a.city, (m.get(a.city) ?? 0) + 1)
+    }
+    return [...m.entries()].sort((a, b) => b[1] - a[1])
+  }, [data])
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+        className="panel w-full max-w-lg p-5 space-y-3 max-h-[85vh] overflow-y-auto">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <div className="text-3xl">{flagEmoji(country.country_code)}</div>
+            <div>
+              <h3 className="text-base font-bold text-ink-100">{country.country}</h3>
+              <div className="text-[10px] font-mono text-ink-500 mt-0.5">
+                {country.visit_count.toLocaleString('fr-CA')} visites · {cityCounts.length} ville{cityCounts.length > 1 ? 's' : ''}
               </div>
             </div>
           </div>
-        </motion.div>
-      ))}
-    </div>
+          <button onClick={onClose} className="text-ink-500 hover:text-ink-200">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div>
+          <div className="text-[10px] uppercase tracking-wider font-semibold text-ink-400 mb-2">
+            Villes par fréquence (cellules géocodées)
+          </div>
+          <div className="space-y-1 max-h-[400px] overflow-y-auto">
+            {cityCounts.map(([city, count], idx) => {
+              const max = cityCounts[0]?.[1] ?? 1
+              const pct = (count / max) * 100
+              return (
+                <div key={city} className="relative flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-ink-800/50">
+                  <span className="w-5 text-right font-mono text-ink-600 text-[10px]">{idx + 1}</span>
+                  <span className="flex-1 truncate">{city}</span>
+                  <span className="font-mono text-sky-400">{count}</span>
+                  <div className="absolute bottom-0 left-7 right-12 h-0.5 bg-sky-500/20 rounded-full overflow-hidden">
+                    <div className="h-full bg-sky-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              )
+            })}
+            {cityCounts.length === 0 && (
+              <p className="text-xs text-ink-500 italic text-center py-4">
+                Géocodage en cours… revient quand le worker aura traité ce pays.
+              </p>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
   )
+}
+
+function flagEmoji(code: string | null): string {
+  if (!code || code.length !== 2) return '🌍'
+  const a = 0x1F1E6
+  return String.fromCodePoint(a + (code.toUpperCase().charCodeAt(0) - 65))
+       + String.fromCodePoint(a + (code.toUpperCase().charCodeAt(1) - 65))
 }
 
 // ─── HeatmapYearSlider ────────────────────────────────────────────────────────
@@ -1349,9 +1493,13 @@ const MONTH_LABELS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août
 const COMPARE_COLORS = ['#5cdb95', '#5fb3f4', '#fbbf24', '#c084fc']
 
 function YearComparePanel({ years }: { years: { year: number; monthly_visits: number[] }[] }) {
+  // Exclut l'annee courante (incomplete) du choix par defaut
+  const currentYear = new Date().getFullYear()
   const sortedYears = useMemo(() => [...years].sort((a, b) => b.year - a.year), [years])
-  const defaultA = sortedYears[0]?.year
-  const defaultB = sortedYears[1]?.year ?? sortedYears[0]?.year
+  // Pour les defaults, prend les 2 dernieres annees COMPLETES
+  const completeYears = sortedYears.filter(y => y.year < currentYear)
+  const defaultA = completeYears[0]?.year ?? sortedYears[0]?.year
+  const defaultB = completeYears[1]?.year ?? completeYears[0]?.year ?? sortedYears[0]?.year
 
   const [yearA, setYearA] = useState(defaultA)
   const [yearB, setYearB] = useState(defaultB)
@@ -1576,19 +1724,27 @@ function SemanticLegend({ visits, active, onChange }: {
 }
 
 function MiniVisitRow({ visit }: { visit: LocationVisit }) {
+  const { data: addressesData } = useSWR('addresses-index', () => api.locations.addresses(),
+    { revalidateOnFocus: false })
+  const addr = useMemo(() => {
+    if (!addressesData) return null
+    return buildAddressLookup(addressesData.addresses)(parseFloat(visit.lat), parseFloat(visit.lng))
+  }, [addressesData, visit.lat, visit.lng])
+
   const start = new Date(visit.start_time)
   const end   = new Date(visit.end_time)
   const durationMin = Math.round((end.getTime() - start.getTime()) / 60000)
   return (
     <div className="flex items-center gap-2 text-xs font-mono py-0.5">
-      <span className="text-ink-500 shrink-0">
+      <span className="text-ink-500 shrink-0 w-16">
         {start.toLocaleDateString('fr-CA', { day: 'numeric', month: 'short', year: '2-digit' })}
       </span>
       <span className="text-ink-600">·</span>
-      <span className="text-ink-400 truncate">
-        {parseFloat(visit.lat).toFixed(4)}°, {parseFloat(visit.lng).toFixed(4)}°
+      <span className={cn('truncate flex-1', addr ? 'text-amber-300' : 'text-ink-400')}
+        title={addr?.label ?? `${parseFloat(visit.lat).toFixed(4)}, ${parseFloat(visit.lng).toFixed(4)}`}>
+        {addr?.label ?? `${parseFloat(visit.lat).toFixed(4)}°, ${parseFloat(visit.lng).toFixed(4)}°`}
       </span>
-      <span className="ml-auto text-ink-600 shrink-0">
+      <span className="text-ink-600 shrink-0">
         {durationMin < 60 ? `${durationMin}min` : `${Math.floor(durationMin/60)}h`}
       </span>
     </div>
