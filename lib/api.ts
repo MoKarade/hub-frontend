@@ -6,7 +6,7 @@
 // - localhost:3000 -> http://localhost:8000 (hub-core direct)
 // - autre hostname (deploiement futur) -> /api (Caddy proxy)
 
-function getBaseUrl(): string {
+export function getBaseUrl(): string {
   // Cote serveur (SSR/build) : fallback dev local hardcode.
   if (typeof window === 'undefined') return 'http://localhost:8000'
   // Cote client : detection runtime depuis window.location uniquement.
@@ -50,6 +50,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     })
     if (!res.ok) {
       const text = await res.text().catch(() => '')
+      // Messages user-friendly pour les statuts courants
+      if (res.status === 401) {
+        throw new ApiError(401, 'Session expirée — reconnecte-toi via /settings')
+      }
+      if (res.status === 403) {
+        throw new ApiError(403, 'Accès refusé')
+      }
+      if (res.status === 429) {
+        throw new ApiError(429, 'Trop de requêtes — réessaie dans quelques secondes')
+      }
       throw new ApiError(
         res.status,
         `${res.status} ${res.statusText} on ${path}${text ? ' — ' + text.slice(0, 200) : ''}`
@@ -815,6 +825,19 @@ export const api = {
     },
   },
 
+  security: {
+    /**
+     * Proxy HIBP Pwned Passwords k-anonymity.
+     * Backend retourne {ranges: "SUFFIX:COUNT\nSUFFIX:COUNT\n..."} (format text HIBP).
+     * Ne jamais appeler api.pwnedpasswords.com directement (CSP + perf + révèle l'IP).
+     */
+    hibpPasswords: (prefix: string) =>
+      request<{ ranges: string }>(`/v1/security/hibp/passwords/${encodeURIComponent(prefix)}`),
+    /** Proxy HIBP /breaches (full list ou filtré par domaine). */
+    hibpBreaches: (domain?: string) =>
+      request<HibpBreach[]>('/v1/security/hibp/breaches' + qs({ domain })),
+  },
+
   oauth: {
     /** URL absolue pour rediriger le browser (pas un fetch). */
     startUrl: (service: string) =>
@@ -828,6 +851,21 @@ export const api = {
         { method: 'POST' }
       ),
   },
+}
+
+export type HibpBreach = {
+  Name: string
+  Title: string
+  Domain: string
+  BreachDate: string
+  PwnCount: number
+  Description: string
+  DataClasses: string[]
+  IsVerified: boolean
+  IsSensitive: boolean
+  IsRetired: boolean
+  IsSpamList: boolean
+  LogoPath: string
 }
 
 export type OAuthStatusItem = {

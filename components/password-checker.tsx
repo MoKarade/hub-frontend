@@ -17,8 +17,7 @@
 import { useRef, useState } from 'react'
 import { Eye, EyeOff, Shield, ShieldAlert, ShieldCheck, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-const HIBP_API = 'https://api.pwnedpasswords.com/range'
+import { api } from '@/lib/api'
 
 type CheckResult =
   | { status: 'idle' }
@@ -44,16 +43,11 @@ async function checkPassword(password: string, signal?: AbortSignal): Promise<Ch
     const prefix = hash.slice(0, 5)
     const suffix = hash.slice(5)
 
-    const resp = await fetch(`${HIBP_API}/${prefix}`, {
-      headers: { 'Add-Padding': 'true' }, // padding pour ne pas leak la length
-      signal,
-    })
-    if (!resp.ok) {
-      return { status: 'error', message: `HIBP API ${resp.status}` }
-    }
-    const text = await resp.text()
+    // Proxy backend (jamais d'appel direct à api.pwnedpasswords.com depuis le frontend)
+    const data = await api.security.hibpPasswords(prefix)
+    if (signal?.aborted) return { status: 'idle' }
     // Format : SUFFIX:COUNT par ligne
-    for (const line of text.split('\n')) {
+    for (const line of data.ranges.split('\n')) {
       const [s, c] = line.trim().split(':')
       if (s === suffix) {
         const count = parseInt(c, 10)

@@ -302,11 +302,15 @@ function BankingTab({
                   <td
                     className={cn(
                       'px-4 py-2 text-right font-mono tabular-nums',
-                      amount >= 0 ? 'data-positive' : 'data-negative'
+                      amount === null ? 'text-ink-400' : amount >= 0 ? 'data-positive' : 'data-negative'
                     )}
                   >
-                    {amount >= 0 ? '+' : ''}
-                    {formatCurrency(amount, account?.currency ?? 'CAD')}
+                    {amount === null ? '—' : (
+                      <>
+                        {amount >= 0 ? '+' : ''}
+                        {formatCurrency(amount, account?.currency ?? 'CAD')}
+                      </>
+                    )}
                   </td>
                   <td className="px-4 py-2 text-right font-mono tabular-nums text-ink-400">
                     {formatCurrency(t.balance_after, account?.currency ?? 'CAD')}

@@ -15,7 +15,7 @@ import {
   Grid3X3,
   Map as MapIcon,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import useSWR, { mutate as swrMutate } from 'swr'
 import { api, type PhotoItem, type PhotosStatsResponse } from '@/lib/api'
@@ -56,6 +56,15 @@ export default function PhotosPage() {
   const [sort, setSort] = useState<SortField>('date_desc')
   const [showFilters, setShowFilters] = useState(false)
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null)
+
+  // Annule le polling pickerStatus si l'user quitte la page pendant la sync (10 min max sinon).
+  const cancelledRef = useRef(false)
+  useEffect(() => {
+    cancelledRef.current = false
+    return () => {
+      cancelledRef.current = true
+    }
+  }, [])
 
   const { data: photos } = useSWR<PhotoItem[]>(
     ['photos', filterType, since, until],
@@ -103,7 +112,7 @@ export default function PhotosPage() {
         sorted.sort((a, b) => +new Date(b.creation_time) - +new Date(a.creation_time))
     }
     return sorted
-  }, [photos, activeYear, sort])
+  }, [photos, activeYear, activeCamera, activeLocation, onlyGeo, sort])
 
   async function handleSync() {
     // Picker API : ouvre la fenetre Google Picker
@@ -125,8 +134,10 @@ export default function PhotosPage() {
       const startTime = Date.now()
       while (!done && Date.now() - startTime < 600_000) {
         await new Promise((res) => setTimeout(res, 3000))
+        if (cancelledRef.current) return
         try {
           const status = await api.photos.pickerStatus(session.session_id)
+          if (cancelledRef.current) return
           if (status.media_items_set) {
             done = true
             break
@@ -142,6 +153,7 @@ export default function PhotosPage() {
         return
       }
 
+      if (cancelledRef.current) return
       const res = await api.photos.pickerImport(session.session_id)
       toast.success(`Import OK · ${res.ingested} nouvelles, ${res.updated} màj`, {
         description: `${res.duration_seconds}s`,
@@ -617,8 +629,6 @@ function Lightbox({
   onNavigate: (i: number) => void
 }) {
   const photo = photos[index]
-  // Image full-size via proxy thumbnail size 1200 (vs 200 pour grid)
-  const fullUrl = thumbUrl(photo.media_id, 1200)
 
   // Keyboard navigation : Escape ferme, fleches naviguent
   useEffect(() => {
@@ -630,6 +640,13 @@ function Lightbox({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [index, photos.length, onClose, onNavigate])
+
+  // Guard : si SWR shrink le tableau pendant que la lightbox est ouverte
+  // (ex: filtre changé en arrière-plan), photos[index] devient undefined → crash.
+  if (!photo) return null
+
+  // Image full-size via proxy thumbnail size 1200 (vs 200 pour grid)
+  const fullUrl = thumbUrl(photo.media_id, 1200)
 
   return (
     <div

@@ -36,7 +36,9 @@ export interface UseEventSourceReturn {
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 const EVENT_TYPES: HubEventType[] = ['connected', 'new_transaction', 'new_location', 'stats_update']
-const RECONNECT_DELAY_MS = 5_000
+const RECONNECT_BASE_DELAY_MS = 1_000   // 1ère tentative
+const RECONNECT_MAX_DELAY_MS = 60_000   // cap à 1 min
+const RECONNECT_MAX_ATTEMPTS = 30       // ~10 min total avec backoff
 
 export function useEventSource(url: string): UseEventSourceReturn {
   const [lastEvent, setLastEvent] = useState<HubEvent | null>(null)
@@ -44,9 +46,11 @@ export function useEventSource(url: string): UseEventSourceReturn {
   const esRef = useRef<EventSource | null>(null)
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cancelledRef = useRef(false)
+  const attemptRef = useRef(0)
 
   useEffect(() => {
     cancelledRef.current = false
+    attemptRef.current = 0
 
     function connect() {
       if (cancelledRef.current) return
@@ -63,6 +67,7 @@ export function useEventSource(url: string): UseEventSourceReturn {
             const data = JSON.parse(e.data as string) as Record<string, unknown>
             if (type === 'connected') {
               setStatus('connected')
+              attemptRef.current = 0  // reset backoff au connect réussi
             }
             setLastEvent({ type, data, receivedAt: Date.now() })
           } catch {
@@ -79,7 +84,18 @@ export function useEventSource(url: string): UseEventSourceReturn {
         if (cancelledRef.current) return
         setStatus('error')
         es.close()
-        retryRef.current = setTimeout(connect, RECONNECT_DELAY_MS)
+        attemptRef.current += 1
+        if (attemptRef.current > RECONNECT_MAX_ATTEMPTS) {
+          // Stop reconnect après N tentatives — Marc devra reload la page
+          setStatus('disconnected')
+          return
+        }
+        // Exponential backoff : 1s, 2s, 4s, 8s, ..., capped à 60s
+        const delay = Math.min(
+          RECONNECT_BASE_DELAY_MS * 2 ** (attemptRef.current - 1),
+          RECONNECT_MAX_DELAY_MS
+        )
+        retryRef.current = setTimeout(connect, delay)
       }
     }
 

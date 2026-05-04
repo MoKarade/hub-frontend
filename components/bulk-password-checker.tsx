@@ -34,8 +34,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BreachesAnalysis } from '@/components/breaches-analysis'
-
-const HIBP_API = 'https://api.pwnedpasswords.com/range'
+import { api } from '@/lib/api'
 
 interface PasswordEntry {
   name: string
@@ -64,13 +63,10 @@ async function checkOne(password: string, signal?: AbortSignal): Promise<{ count
     const hash = await sha1HexUpper(password)
     const prefix = hash.slice(0, 5)
     const suffix = hash.slice(5)
-    const resp = await fetch(`${HIBP_API}/${prefix}`, {
-      headers: { 'Add-Padding': 'true' },
-      signal,
-    })
-    if (!resp.ok) return { error: `HIBP ${resp.status}` }
-    const text = await resp.text()
-    for (const line of text.split('\n')) {
+    // Proxy backend (jamais d'appel direct à api.pwnedpasswords.com depuis le frontend)
+    const data = await api.security.hibpPasswords(prefix)
+    if (signal?.aborted) return { error: 'aborted' }
+    for (const line of data.ranges.split('\n')) {
       const [s, c] = line.trim().split(':')
       if (s === suffix) {
         const count = parseInt(c, 10)

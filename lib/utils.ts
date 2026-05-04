@@ -71,13 +71,14 @@ export function formatRelative(date: Date | string): string {
 
 /**
  * Détermine le signe et le montant absolu d'une transaction (compte courant).
- * Retourne `+credit` si la transaction est un credit, `-debit` sinon.
+ * Retourne `+credit` si credit, `-debit` si debit, `null` si les deux sont vides.
+ * Les composants doivent guard sur null pour afficher "—" plutôt que 0.
  */
 export function signedAmount(
   debit: string | null,
   credit: string | null
-): number {
-  if (credit !== null) return parseFloat(credit)
-  if (debit !== null) return -parseFloat(debit)
-  return 0
+): number | null {
+  if (credit !== null && credit !== '') return parseFloat(credit)
+  if (debit !== null && debit !== '') return -parseFloat(debit)
+  return null
 }

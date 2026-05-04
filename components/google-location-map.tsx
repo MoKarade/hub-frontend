@@ -32,6 +32,11 @@ interface Props {
 }
 
 export function GoogleLocationMap({ points }: Props) {
+  // SECURITY: NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ships in the JS bundle.
+  // MUST have HTTP referrer restrictions in Google Cloud Console:
+  // https://console.cloud.google.com/apis/credentials → API key → Application restrictions
+  // → HTTP referrers → add: localhost:*, hubperso.duckdns.org/*, your domain
+  // Without this, anyone scraping the bundle can use the key (28k loads/mo free quota → billing).
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
   const [loadError, setLoadError] = useState<string | null>(null)
 

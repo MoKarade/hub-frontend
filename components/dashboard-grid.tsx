@@ -16,7 +16,7 @@
  *   - Pas de WidgetGrid (sortable) : grille CSS directe
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Widget } from '@/components/widget'
 import { AiSearchCard } from '@/components/ai-search-card'
@@ -26,6 +26,7 @@ import { SpendingChart } from '@/components/spending-chart'
 import { RecentTransactions } from '@/components/recent-transactions'
 import { AppTile } from '@/components/app-tile'
 import { useEventSource } from '@/lib/use-event-source'
+import { getBaseUrl } from '@/lib/api'
 import {
   Wallet,
   MapPin,
@@ -39,9 +40,6 @@ import {
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const API_BASE = process.env.NEXT_PUBLIC_HUB_API_URL ?? 'http://localhost:8000'
-const SSE_URL = `${API_BASE}/v1/events/stream`
-
 const PULSE_DURATION_MS = 2_000
 
 // Col-span pour grille fixe (3 cols sur desktop, 2 sur tablet, 1 mobile)
@@ -52,7 +50,10 @@ const SPAN_SM = 'col-span-1'
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function DashboardGrid() {
-  const { lastEvent } = useEventSource(SSE_URL)
+  // URL SSE détectée au runtime (window.location), comme le reste du client API.
+  // useMemo pour ne pas recalculer à chaque render (et éviter de relancer l'EventSource).
+  const sseUrl = useMemo(() => `${getBaseUrl()}/v1/events/stream`, [])
+  const { lastEvent } = useEventSource(sseUrl)
   const [pulseTransactions, setPulseTransactions] = useState(false)
 
   // Ring-pulse 2s sur le widget Recent transactions à chaque new_transaction

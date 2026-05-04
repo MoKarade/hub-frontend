@@ -34,23 +34,9 @@ import {
   Globe,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { api, type HibpBreach } from '@/lib/api'
 
-const HIBP_BREACHES_API = 'https://haveibeenpwned.com/api/v3/breaches'
-
-interface HIBPBreach {
-  Name: string
-  Title: string
-  Domain: string
-  BreachDate: string
-  PwnCount: number
-  Description: string
-  DataClasses: string[]
-  IsVerified: boolean
-  IsSensitive: boolean
-  IsRetired: boolean
-  IsSpamList: boolean
-  LogoPath: string
-}
+type HIBPBreach = HibpBreach
 
 interface BreachesAnalysisProps {
   /** Liste des entries CSV (apres extraction des domaines) */
@@ -103,16 +89,12 @@ export function BreachesAnalysis({ entries }: BreachesAnalysisProps) {
   const [error, setError] = useState<string | null>(null)
   const [expandedBreach, setExpandedBreach] = useState<string | null>(null)
 
-  // Fetch la liste publique HIBP /breaches (free, no auth)
+  // Fetch la liste publique HIBP /breaches via proxy backend (jamais direct depuis le frontend)
   useEffect(() => {
     let cancelled = false
     async function load() {
       try {
-        const resp = await fetch(HIBP_BREACHES_API, {
-          headers: { Accept: 'application/json' },
-        })
-        if (!resp.ok) throw new Error(`HIBP ${resp.status}`)
-        const data = (await resp.json()) as HIBPBreach[]
+        const data = await api.security.hibpBreaches()
         if (!cancelled) {
           setBreaches(data)
           setLoading(false)
