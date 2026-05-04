@@ -101,7 +101,7 @@ export default function LocationsPage() {
         <GlobalStatsStrip stats={stats ?? null} />
         <Tabs items={TABS} defaultId="carte" />
 
-        {activeTab === 'carte'   && <CarteTab latestDate={stats?.latest_date ?? null} />}
+        {activeTab === 'carte'   && <CarteTab latestDate={stats?.latest_date ?? null} earliestDate={stats?.earliest_date ?? null} />}
         {activeTab === 'journee' && <JourneeTab initialDate={dateParam ?? undefined} defaultDate={stats?.latest_date ?? new Date().toISOString().slice(0, 10)} />}
         {activeTab === 'visites' && <VisitesTab />}
         {activeTab === 'voyages' && <VoyagesTab onOpenDay={navigateToDay} />}
@@ -203,40 +203,87 @@ const MAP_MODES: Array<{ id: MapMode; label: string; icon: ComponentType<{ size?
   { id: 'heatmap',    label: 'Heatmap',  icon: Flame,      hex: '#fb923c' },
 ]
 
-function CarteTab({ latestDate }: { latestDate: string | null }) {
-  const defaultEnd = latestDate ?? new Date().toISOString().slice(0, 10)
-  const defaultStart = useMemo(() => {
-    const d = new Date(defaultEnd)
-    d.setMonth(d.getMonth() - 2)
-    return d.toISOString().slice(0, 10)
-  }, [defaultEnd])
+function CarteTab({ latestDate, earliestDate }: { latestDate: string | null; earliestDate: string | null }) {
+  const safeEnd = latestDate ?? new Date().toISOString().slice(0, 10)
+  const safeStart = earliestDate ?? '2013-01-01'
 
-  const [startDate, setStartDate] = useState(defaultStart)
-  const [endDate, setEndDate]     = useState(defaultEnd)
+  // Helper : calcule une date X mois avant la dernière donnée
+  const monthsBefore = useCallback((months: number) => {
+    const d = new Date(safeEnd); d.setMonth(d.getMonth() - months)
+    return d.toISOString().slice(0, 10)
+  }, [safeEnd])
+
+  const [startDate, setStartDate] = useState(() => monthsBefore(2))
+  const [endDate, setEndDate]     = useState(safeEnd)
   const [mode, setMode]           = useState<MapMode>('visits')
   const [clickPos, setClickPos]   = useState<{ lat: number; lng: number } | null>(null)
 
-  // Visites pour le mode visites
+  const setPreset = useCallback((preset: 'all' | '1M' | '3M' | '6M' | '1Y') => {
+    setEndDate(safeEnd)
+    if (preset === 'all') setStartDate(safeStart)
+    else if (preset === '1M') setStartDate(monthsBefore(1))
+    else if (preset === '3M') setStartDate(monthsBefore(3))
+    else if (preset === '6M') setStartDate(monthsBefore(6))
+    else if (preset === '1Y') setStartDate(monthsBefore(12))
+  }, [safeStart, safeEnd, monthsBefore])
+
+  // Limits adaptatifs selon le mode (extreme precision : tout charger)
+  // - visites : 50k couvre TOUT (13.6k actuel)
+  // - heatmap : 100k pts (canvas perf OK)
+  // - trajectory : 30k (au-dela = freeze browser sur polylines SVG)
+  // - points : 30k aussi
+  const limits = {
+    visits: 50000,
+    heatmap: 100000,
+    trajectory: 30000,
+    points: 30000,
+  } as const
+
   const { data: visits, isLoading: visitsLoading } = useSWR(
     mode === 'visits' ? ['loc-visits-map', startDate, endDate] : null,
-    () => api.locations.visits.list({ start_date: startDate, end_date: endDate, limit: 2000 })
+    () => api.locations.visits.list({ start_date: startDate, end_date: endDate, limit: limits.visits })
   )
-  // Points pour les modes points / trajectory / heatmap
   const { data: points, isLoading: pointsLoading } = useSWR(
     mode !== 'visits' ? ['loc-points-map', startDate, endDate, mode] : null,
     () => api.locations.points.list({
       start_date: startDate, end_date: endDate,
-      limit: mode === 'heatmap' ? 10000 : 5000,
+      limit: limits[mode as 'heatmap' | 'trajectory' | 'points'],
       source: 'google_timeline',
     })
   )
 
   const isLoading = mode === 'visits' ? visitsLoading : pointsLoading
   const count = mode === 'visits' ? (visits?.length ?? 0) : (points?.length ?? 0)
+  const isFullRange = startDate === safeStart && endDate === safeEnd
 
   return (
     <div className="flex flex-col gap-3 flex-1">
-      {/* Filtres */}
+      {/* Presets de période */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="text-[10px] uppercase tracking-wider font-semibold text-ink-500 mr-1">Période :</span>
+        {([
+          { id: '1M',  label: '1 mois'  },
+          { id: '3M',  label: '3 mois'  },
+          { id: '6M',  label: '6 mois'  },
+          { id: '1Y',  label: '1 an'    },
+          { id: 'all', label: 'TOUT' },
+        ] as const).map((p) => (
+          <button key={p.id} onClick={() => setPreset(p.id)}
+            className={cn('px-2.5 py-1 text-xs rounded-md border transition-colors font-mono',
+              p.id === 'all' && isFullRange
+                ? 'bg-accent text-ink-900 border-accent font-bold'
+                : 'bg-ink-800 border-ink-700 text-ink-300 hover:border-ink-500')}>
+            {p.label}
+          </button>
+        ))}
+        {isFullRange && (
+          <span className="text-[10px] font-mono text-accent ml-1">
+            {earliestDate?.slice(0, 4)} → {latestDate?.slice(0, 4)} · tout l'historique
+          </span>
+        )}
+      </div>
+
+      {/* Filtres détaillés */}
       <div className="panel p-3 grid grid-cols-2 md:grid-cols-[1fr_1fr_auto_auto] gap-3 items-end">
         <div>
           <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-1">Du</label>
@@ -270,8 +317,11 @@ function CarteTab({ latestDate }: { latestDate: string | null }) {
         <div className="flex items-center gap-2 self-end pb-1">
           <Layers size={13} className="text-ink-400" />
           <span className="text-xs text-ink-400 font-mono">
-            {isLoading ? '…' : `${count.toLocaleString('fr-CA')}`}
+            {isLoading ? '…' : `${count.toLocaleString('fr-CA')} ${mode === 'visits' ? 'visites' : 'pts'}`}
           </span>
+          {mode === 'trajectory' && count >= limits.trajectory && (
+            <span className="text-[10px] font-mono text-amber-400" title="Limite atteinte">⚠</span>
+          )}
         </div>
       </div>
 
@@ -603,38 +653,43 @@ function StatsTab() {
 
       {yearStats && yearStats.length > 0 && (
         <div className="panel p-4 col-span-full">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-3">Visites par année</div>
-          <div className="flex items-end gap-1.5 h-32 overflow-x-auto pb-2">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-3">
+            Visites par année — {yearStats.reduce((s, y) => s + y.visits, 0).toLocaleString('fr-CA')} au total
+          </div>
+
+          <div className="flex items-stretch gap-1.5 h-40 pb-1">
             {yearStats.map((y) => {
               const pct     = (y.visits / maxYearVisits) * 100
               const homePct = y.visits > 0 ? (y.home_visits / y.visits) * 100 : 0
               const workPct = y.visits > 0 ? (y.work_visits / y.visits) * 100 : 0
               return (
-                <div key={y.year} className="flex flex-col items-center gap-1 min-w-[34px] group cursor-default">
-                  <span className="text-[9px] font-mono text-ink-600 group-hover:text-accent transition-colors opacity-0 group-hover:opacity-100">
-                    {y.visits}
+                <div key={y.year} className="flex-1 flex flex-col items-center gap-1 min-w-[28px] group cursor-default relative">
+                  {/* Tooltip count visible au hover */}
+                  <span className="text-[10px] font-mono text-ink-300 opacity-0 group-hover:opacity-100 transition-opacity h-3.5">
+                    {y.visits.toLocaleString('fr-CA')}
                   </span>
-                  <div className="flex-1 flex flex-col justify-end w-full">
-                    <div className="relative w-full rounded-t overflow-hidden"
-                      style={{ height: `${Math.max(pct, 2)}%`, backgroundColor: '#8b95a322' }}>
-                      <div className="absolute bottom-0 left-0 right-0"
+                  {/* Container bar : flex-1 prend tout l'espace vertical restant */}
+                  <div className="flex-1 w-full flex flex-col justify-end">
+                    <div className="relative w-full rounded-t overflow-hidden transition-all group-hover:brightness-125"
+                      style={{ height: `${Math.max(pct, 2)}%`, backgroundColor: '#8b95a330', minHeight: 4 }}>
+                      <div className="absolute bottom-0 left-0 right-0 transition-all"
                         style={{ height: `${homePct}%`, backgroundColor: '#5cdb95' }} />
-                      <div className="absolute left-0 right-0"
+                      <div className="absolute left-0 right-0 transition-all"
                         style={{ bottom: `${homePct}%`, height: `${workPct}%`, backgroundColor: '#5fb3f4' }} />
                     </div>
                   </div>
-                  <span className="text-[9px] font-mono text-ink-500"
-                    style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
-                    {y.year}
+                  <span className="text-[9px] font-mono text-ink-500 group-hover:text-ink-200 transition-colors h-3">
+                    {String(y.year).slice(2)}
                   </span>
                 </div>
               )
             })}
           </div>
-          <div className="flex items-center gap-4 mt-1 text-[10px] text-ink-500">
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm" style={{backgroundColor:'#5cdb95'}} />Domicile</span>
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm" style={{backgroundColor:'#5fb3f4'}} />Travail</span>
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm" style={{backgroundColor:'#8b95a322',border:'1px solid #8b95a3'}} />Autres</span>
+
+          <div className="flex items-center gap-4 mt-3 text-[10px] text-ink-500">
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{backgroundColor:'#5cdb95'}} />Domicile ({yearStats.reduce((s, y) => s + y.home_visits, 0).toLocaleString('fr-CA')})</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{backgroundColor:'#5fb3f4'}} />Travail ({yearStats.reduce((s, y) => s + y.work_visits, 0).toLocaleString('fr-CA')})</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{backgroundColor:'#8b95a330',border:'1px solid #8b95a3'}} />Autres lieux</span>
           </div>
         </div>
       )}

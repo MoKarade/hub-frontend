@@ -998,7 +998,8 @@ export const api = {
       request<DayResponse>('/v1/locations/day' + qs({ date })),
     trips: (params: {
       home_lat?: number; home_lng?: number;
-      home_radius_km?: number; min_duration_hours?: number; min_distance_km?: number
+      home_radius_km?: number; min_duration_hours?: number; min_distance_km?: number;
+      home_recency_months?: number;
     } = {}) =>
       request<TripsResponse>('/v1/locations/trips' + qs(params)),
     reverseGeocode: (lat: number, lng: number) =>

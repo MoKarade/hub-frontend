@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic'
 import { useState, useMemo } from 'react'
 import {
   MapPin, Compass, Plane, Calendar, Ruler, Hash, RefreshCw, ChevronRight,
-  Settings, Globe, Clock,
+  Settings, Globe, Clock, Search, X,
 } from 'lucide-react'
 import { api, type Trip } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -22,18 +22,63 @@ export interface VoyagesTabProps {
 
 export function VoyagesTab({ onOpenDay }: VoyagesTabProps) {
   const [showSettings, setShowSettings] = useState(false)
-  const [minHours, setMinHours]         = useState(48)
-  const [minDistKm, setMinDistKm]       = useState(200)
-  const [homeRadiusKm, setHomeRadiusKm] = useState(50)
+  const [minHours, setMinHours]         = useState(24)
+  const [minDistKm, setMinDistKm]       = useState(150)
+  const [homeRadiusKm, setHomeRadiusKm] = useState(30)
+  const [recencyMonths, setRecencyMonths] = useState(12)
+  const [manualHome, setManualHome]     = useState<{ lat: string; lng: string }>({ lat: '', lng: '' })
+  const [search, setSearch]             = useState('')
+  const [yearFilter, setYearFilter]     = useState<number | null>(null)
+
+  const useManual = manualHome.lat !== '' && manualHome.lng !== ''
+  const homeLatN = useManual ? parseFloat(manualHome.lat) : undefined
+  const homeLngN = useManual ? parseFloat(manualHome.lng) : undefined
 
   const { data, isLoading, error } = useSWR(
-    ['trips', minHours, minDistKm, homeRadiusKm],
+    ['trips', minHours, minDistKm, homeRadiusKm, recencyMonths, homeLatN, homeLngN],
     () => api.locations.trips({
       min_duration_hours: minHours,
       min_distance_km: minDistKm,
       home_radius_km: homeRadiusKm,
+      home_recency_months: useManual ? undefined : recencyMonths,
+      home_lat: homeLatN,
+      home_lng: homeLngN,
     })
   )
+
+  // Filtre client : recherche texte + année
+  const filteredTrips = useMemo(() => {
+    if (!data) return []
+    let trips = data.trips
+    if (yearFilter) {
+      trips = trips.filter(t =>
+        t.start_date.startsWith(String(yearFilter)) || t.end_date.startsWith(String(yearFilter)))
+    }
+    if (search.trim()) {
+      const s = search.toLowerCase().trim()
+      trips = trips.filter(t => {
+        // Match dates, distances, destinations
+        const haystack = [
+          t.start_date, t.end_date,
+          t.destinations.map(d => `${d.lat.toFixed(2)},${d.lng.toFixed(2)}`).join(' '),
+          // Coords-based country guess (très rough)
+          guessRegionFromCoords(t.destinations[0]?.lat, t.destinations[0]?.lng),
+          `${t.duration_days}j`,
+          `${Math.round(t.max_distance_from_home_km)}km`,
+        ].join(' ').toLowerCase()
+        return haystack.includes(s)
+      })
+    }
+    return trips
+  }, [data, yearFilter, search])
+
+  // Années uniques pour le filter chips
+  const years = useMemo(() => {
+    if (!data) return []
+    const set = new Set<number>()
+    for (const t of data.trips) set.add(parseInt(t.start_date.slice(0, 4)))
+    return [...set].sort((a, b) => b - a)
+  }, [data])
 
   return (
     <div className="flex flex-col gap-3">
@@ -63,23 +108,23 @@ export function VoyagesTab({ onOpenDay }: VoyagesTabProps) {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="panel p-4 overflow-hidden"
+            className="panel p-4 overflow-hidden space-y-4"
           >
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-1">
                   Durée minimum : {minHours}h ({Math.floor(minHours/24)}j)
                 </label>
-                <input type="range" min="12" max="240" step="12" value={minHours}
+                <input type="range" min="6" max="240" step="6" value={minHours}
                   onChange={(e) => setMinHours(Number(e.target.value))}
                   className="w-full accent-accent" />
-                <div className="flex justify-between text-[9px] text-ink-600 font-mono"><span>12h</span><span>10j</span></div>
+                <div className="flex justify-between text-[9px] text-ink-600 font-mono"><span>6h</span><span>10j</span></div>
               </div>
               <div>
                 <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-1">
                   Distance min : {minDistKm} km
                 </label>
-                <input type="range" min="20" max="2000" step="20" value={minDistKm}
+                <input type="range" min="20" max="2000" step="10" value={minDistKm}
                   onChange={(e) => setMinDistKm(Number(e.target.value))}
                   className="w-full accent-accent" />
                 <div className="flex justify-between text-[9px] text-ink-600 font-mono"><span>20km</span><span>2000km</span></div>
@@ -94,11 +139,56 @@ export function VoyagesTab({ onOpenDay }: VoyagesTabProps) {
                 <div className="flex justify-between text-[9px] text-ink-600 font-mono"><span>5km</span><span>200km</span></div>
               </div>
             </div>
-            {data && (
-              <p className="text-[10px] text-ink-500 font-mono mt-3">
-                💡 Centroid HOME calculé : {data.home_lat.toFixed(4)}°, {data.home_lng.toFixed(4)}°
+
+            {/* Auto-detect HOME settings */}
+            <div className="p-3 rounded-md bg-ink-800/40 border border-ink-700/40 space-y-2.5">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-ink-300">Domicile</span>
+                {data && (
+                  <span className="text-[10px] font-mono text-accent">
+                    {useManual ? '🎯 manuel' : '🤖 auto'} → {data.home_lat.toFixed(4)}°, {data.home_lng.toFixed(4)}°
+                  </span>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-1">
+                  Auto-détection : HOME des {recencyMonths} derniers mois (gère les déménagements)
+                </label>
+                <input type="range" min="3" max="120" step="3" value={recencyMonths}
+                  onChange={(e) => { setRecencyMonths(Number(e.target.value)); setManualHome({lat:'', lng:''}) }}
+                  disabled={useManual}
+                  className="w-full accent-accent disabled:opacity-30" />
+                <div className="flex justify-between text-[9px] text-ink-600 font-mono"><span>3m</span><span>10ans</span></div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 items-end">
+                <div>
+                  <label className="block text-[10px] uppercase tracking-wider text-ink-500 mb-1">Lat (manuel)</label>
+                  <input type="number" step="0.0001" placeholder="46.7383"
+                    value={manualHome.lat}
+                    onChange={(e) => setManualHome((m) => ({ ...m, lat: e.target.value }))}
+                    className="w-full bg-ink-900 border border-ink-700 rounded px-2 py-1 text-xs font-mono focus:border-accent/50 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase tracking-wider text-ink-500 mb-1">Lng (manuel)</label>
+                  <input type="number" step="0.0001" placeholder="-71.2433"
+                    value={manualHome.lng}
+                    onChange={(e) => setManualHome((m) => ({ ...m, lng: e.target.value }))}
+                    className="w-full bg-ink-900 border border-ink-700 rounded px-2 py-1 text-xs font-mono focus:border-accent/50 outline-none" />
+                </div>
+                {useManual && (
+                  <button onClick={() => setManualHome({lat:'', lng:''})}
+                    className="px-2 py-1 text-[10px] rounded bg-ink-800 border border-ink-700 hover:border-ink-500 text-ink-400">
+                    ↺ Auto
+                  </button>
+                )}
+              </div>
+
+              <p className="text-[10px] text-ink-500 font-mono leading-relaxed">
+                💡 Si tu as déménagé : laisse "auto" et ajuste la fenêtre récente, OU saisis tes coords manuellement (Google Maps clic-droit).
               </p>
-            )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -123,11 +213,63 @@ export function VoyagesTab({ onOpenDay }: VoyagesTabProps) {
           <p className="text-[10px] text-ink-500 font-mono mt-1">Réduis la durée ou la distance min ↑</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {data?.trips.map((trip, i) => (
-            <TripCard key={`${trip.start_date}-${i}`} trip={trip} idx={i} onOpenDay={onOpenDay} />
-          ))}
-        </div>
+        <>
+          {/* Search + year chips */}
+          <div className="flex flex-col gap-2">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500 pointer-events-none" />
+              <input
+                type="text" placeholder="Rechercher un voyage (année, destination, pays, durée…)"
+                value={search} onChange={(e) => setSearch(e.target.value)}
+                className="w-full bg-ink-800 border border-ink-700 rounded-md pl-9 pr-9 py-2 text-sm placeholder:text-ink-500 focus:border-accent/50 outline-none"
+              />
+              {search && (
+                <button onClick={() => setSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-500 hover:text-ink-200">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            {years.length > 1 && (
+              <div className="flex items-center gap-1 flex-wrap">
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-ink-500 mr-1">Année :</span>
+                <button onClick={() => setYearFilter(null)}
+                  className={cn('px-2 py-0.5 text-xs rounded font-mono transition-colors',
+                    yearFilter === null ? 'bg-accent text-ink-900 font-semibold' : 'bg-ink-800 border border-ink-700 text-ink-400 hover:border-ink-500')}>
+                  Toutes
+                </button>
+                {years.map((y) => (
+                  <button key={y} onClick={() => setYearFilter(yearFilter === y ? null : y)}
+                    className={cn('px-2 py-0.5 text-xs rounded font-mono transition-colors',
+                      yearFilter === y ? 'bg-accent text-ink-900 font-semibold' : 'bg-ink-800 border border-ink-700 text-ink-400 hover:border-ink-500')}>
+                    {y}
+                  </button>
+                ))}
+              </div>
+            )}
+            {(search || yearFilter) && (
+              <p className="text-[10px] text-ink-500 font-mono">
+                {filteredTrips.length} voyage{filteredTrips.length > 1 ? 's' : ''} sur {data?.trips.length ?? 0}
+                {(search || yearFilter) && (
+                  <button onClick={() => { setSearch(''); setYearFilter(null) }}
+                    className="ml-2 text-accent hover:underline">effacer filtres</button>
+                )}
+              </p>
+            )}
+          </div>
+
+          {filteredTrips.length === 0 ? (
+            <div className="panel p-6 text-center">
+              <p className="text-sm text-ink-400">Aucun voyage ne match la recherche.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {filteredTrips.map((trip, i) => (
+                <TripCard key={`${trip.start_date}-${i}`} trip={trip} idx={i} onOpenDay={onOpenDay} />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   )
@@ -218,6 +360,39 @@ function TripCard({ trip, idx, onOpenDay }: {
       </div>
     </motion.div>
   )
+}
+
+// Heuristique très simple : devine la région depuis lat/lng pour permettre la recherche
+// "France", "Canada", etc. sans nécessiter de geocoding API.
+function guessRegionFromCoords(lat: number | undefined, lng: number | undefined): string {
+  if (lat == null || lng == null) return ''
+  // Quebec / Canada
+  if (lat >= 43 && lat <= 60 && lng >= -80 && lng <= -57) return 'canada quebec'
+  // USA
+  if (lat >= 25 && lat <= 49 && lng >= -125 && lng <= -67) return 'usa etats-unis amerique'
+  // Mexico / centroamerica
+  if (lat >= 14 && lat <= 32 && lng >= -118 && lng <= -86) return 'mexique mexico'
+  // France métropole
+  if (lat >= 41 && lat <= 51 && lng >= -5 && lng <= 9) return 'france europe'
+  // Italie
+  if (lat >= 36 && lat <= 47 && lng >= 6 && lng <= 19) return 'italie italy europe'
+  // Espagne
+  if (lat >= 35 && lat <= 44 && lng >= -10 && lng <= 4) return 'espagne spain europe'
+  // UK / Ireland
+  if (lat >= 49 && lat <= 61 && lng >= -11 && lng <= 2) return 'uk angleterre irlande europe'
+  // Allemagne / Pologne
+  if (lat >= 47 && lat <= 55 && lng >= 5 && lng <= 24) return 'allemagne germany europe'
+  // Scandinavie
+  if (lat >= 55 && lat <= 71 && lng >= 4 && lng <= 32) return 'scandinavie nordique europe'
+  // Maroc / Tunisie
+  if (lat >= 27 && lat <= 38 && lng >= -13 && lng <= 12) return 'maroc afrique du nord'
+  // Asie est
+  if (lat >= 18 && lat <= 50 && lng >= 100 && lng <= 145) return 'asie japan china korea'
+  // Australie / NZ
+  if (lat >= -47 && lat <= -10 && lng >= 110 && lng <= 180) return 'australie nouvelle-zelande'
+  // Moyen-Orient
+  if (lat >= 12 && lat <= 42 && lng >= 25 && lng <= 65) return 'moyen-orient dubai turquie'
+  return ''
 }
 
 function CompactStat({ icon: Icon, label, value, hex }: {
