@@ -18,11 +18,15 @@ const nextConfig = {
   // Le navigateur ne parle qu'au domaine du hub (pas à localhost:8000 directement).
   // HUB_API_INTERNAL_URL = variable serveur (non NEXT_PUBLIC) → non exposée au client.
   async rewrites() {
+    // Quand le hub est accédé via Cloudflare Tunnel (hostname ≠ localhost),
+    // getBaseUrl() dans api.ts retourne `https://<tunnel>/api`.
+    // Les appels arrivent donc sur /api/v1/... → on les forward vers hub-core.
+    // Couvre aussi les SSE (/api/v1/events/*) qui passent en streaming.
     const apiBase = process.env.HUB_API_INTERNAL_URL || 'http://localhost:8000'
     return [
       {
-        source: '/v1/:path*',
-        destination: `${apiBase}/v1/:path*`,
+        source: '/api/:path*',
+        destination: `${apiBase}/:path*`,
       },
     ]
   },
