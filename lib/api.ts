@@ -838,6 +838,20 @@ export const api = {
       request<HibpBreach[]>('/v1/security/hibp/breaches' + qs({ domain })),
   },
 
+  garmin: {
+    status: () => request<GarminStatusResponse>('/v1/garmin/status'),
+    sync: (opts: { days_back?: number } = {}) =>
+      request<GarminSyncResponse>('/v1/garmin/sync', {
+        method: 'POST',
+        body: JSON.stringify({ days_back: opts.days_back ?? 90 }),
+      }),
+    connect: (payload: { email: string; password?: string; mfa_code?: string; session_id?: string }) =>
+      request<{ status: string; message: string; session_id?: string }>('/v1/garmin/connect', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+  },
+
   oauth: {
     /** URL absolue pour rediriger le browser (pas un fetch). */
     startUrl: (service: string) =>
@@ -851,6 +865,21 @@ export const api = {
         { method: 'POST' }
       ),
   },
+}
+
+// Garmin Connect
+export type GarminStatusResponse = {
+  connected: boolean
+  last_sync_date: string | null
+  total_datapoints: number
+  metrics_available: string[]
+}
+
+export type GarminSyncResponse = {
+  metrics_ingested: number
+  metrics_updated: number
+  days_processed: number
+  duration_seconds: number
 }
 
 export type HibpBreach = {
