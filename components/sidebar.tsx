@@ -29,6 +29,7 @@ import {
   Calendar,
   FileText,
   Heart,
+  Newspaper,
   Settings,
   Activity,
   Boxes,
@@ -77,6 +78,7 @@ const SECTIONS: NavSection[] = [
       { label: 'Contacts',     href: '/contacts',  icon: Users },
       { label: 'Tâches',       href: '/tasks',     icon: CheckSquare },
       { label: 'YouTube',      href: '/youtube',   icon: Youtube },
+      { label: 'Actualites',   href: '/news',      icon: Newspaper },
     ],
   },
   {

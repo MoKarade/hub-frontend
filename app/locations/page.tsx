@@ -11,7 +11,7 @@ import {
   Maximize2, Minimize2, Loader2, X, type LucideIcon,
 } from 'lucide-react'
 import nextDynamic from 'next/dynamic'
-import { Suspense, useMemo, useState, useCallback } from 'react'
+import { Suspense, useMemo, useState, useCallback, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import useSWR, { mutate } from 'swr'
 import { api, type LocationVisit, type LocationStats } from '@/lib/api'
@@ -107,7 +107,10 @@ function LocationsPageInner() {
               Google Maps Timeline · {stats?.earliest_date?.slice(0, 4) ?? '…'} → {stats?.latest_date?.slice(0, 4) ?? '…'}
             </p>
           </div>
-          <IngestButton />
+          <div className="flex items-center gap-2 flex-wrap">
+            <ManualCoordsInput />
+            <IngestButton />
+          </div>
         </header>
 
         <GlobalStatsStrip stats={stats ?? null} />
@@ -174,6 +177,92 @@ function GlobalStatsStrip({ stats }: { stats: LocationStats | null }) {
   )
 }
 
+// ─── ManualCoordsInput ────────────────────────────────────────────────────────
+// Marc 2026-05-05 : "je veux dans mon truc maps pouvoir rentrer moi des coordonnees"
+// Permet de saisir lat,lng pour naviguer rapidement a un point precis sur la carte.
+
+function ManualCoordsInput() {
+  const router = useRouter()
+  const [open, setOpen] = useState(false)
+  const [coords, setCoords] = useState('')
+
+  function handleGo() {
+    const trimmed = coords.trim()
+    if (!trimmed) return
+    // Accepte "lat, lng" ou "lat lng" ou meme une URL Google Maps
+    let lat: number | null = null
+    let lng: number | null = null
+    // URL Google Maps : .../@<lat>,<lng>,...
+    const urlMatch = trimmed.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)
+    if (urlMatch) {
+      lat = parseFloat(urlMatch[1])
+      lng = parseFloat(urlMatch[2])
+    } else {
+      const parts = trimmed.split(/[,\s]+/).filter(Boolean)
+      if (parts.length >= 2) {
+        lat = parseFloat(parts[0])
+        lng = parseFloat(parts[1])
+      }
+    }
+    if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) {
+      alert('Format invalide. Essaie "46.738, -71.243" ou colle une URL Google Maps.')
+      return
+    }
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      alert('Coordonnees hors bornes valides.')
+      return
+    }
+    router.push(`/locations?tab=carte&lat=${lat}&lng=${lng}&zoom=15`)
+    setOpen(false)
+    setCoords('')
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-[11px] font-mono uppercase tracking-wider text-ink-400 hover:text-accent transition-colors px-3 py-1.5 rounded border border-ink-700 hover:border-accent flex items-center gap-1.5"
+        title="Aller a un point precis"
+      >
+        <Globe size={11} />
+        coords
+      </button>
+    )
+  }
+  return (
+    <div className="flex items-center gap-1.5">
+      <input
+        autoFocus
+        type="text"
+        value={coords}
+        onChange={(e) => setCoords(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') handleGo()
+          if (e.key === 'Escape') { setOpen(false); setCoords('') }
+        }}
+        placeholder="46.738, -71.243"
+        className="bg-ink-900 border border-ink-700 rounded px-2 py-1.5 text-xs font-mono text-ink-100 focus:border-accent/50 outline-none w-48"
+      />
+      <button
+        type="button"
+        onClick={handleGo}
+        className="text-[11px] font-mono uppercase tracking-wider text-accent border-accent/40 px-2 py-1.5 rounded border bg-accent/10 hover:bg-accent/20"
+      >
+        ok
+      </button>
+      <button
+        type="button"
+        onClick={() => { setOpen(false); setCoords('') }}
+        className="text-[11px] text-ink-500 hover:text-ink-300 px-1"
+        title="Annuler"
+      >
+        ×
+      </button>
+    </div>
+  )
+}
+
 // ─── IngestButton ─────────────────────────────────────────────────────────────
 
 function IngestButton() {
@@ -220,6 +309,13 @@ function CarteTab({ latestDate, earliestDate }: { latestDate: string | null; ear
   const safeEnd = latestDate ?? new Date().toISOString().slice(0, 10)
   const safeStart = earliestDate ?? '2013-01-01'
 
+  // Lit les params URL ?lat=&lng= (depuis ManualCoordsInput) pour centrer la carte
+  // sur un point precis. On les transforme en clickPos pour reutiliser le marker
+  // existant qui highlight la position.
+  const sp = useSearchParams()
+  const urlLat = sp.get('lat')
+  const urlLng = sp.get('lng')
+
   // Helper : calcule une date X mois avant la dernière donnée
   const monthsBefore = useCallback((months: number) => {
     const d = new Date(safeEnd); d.setMonth(d.getMonth() - months)
@@ -229,7 +325,21 @@ function CarteTab({ latestDate, earliestDate }: { latestDate: string | null; ear
   const [startDate, setStartDate] = useState(() => monthsBefore(2))
   const [endDate, setEndDate]     = useState(safeEnd)
   const [mode, setMode]           = useState<MapMode>('visits')
-  const [clickPos, setClickPos]   = useState<{ lat: number; lng: number } | null>(null)
+  const [clickPos, setClickPos]   = useState<{ lat: number; lng: number } | null>(() => {
+    if (urlLat && urlLng) {
+      const lat = parseFloat(urlLat), lng = parseFloat(urlLng)
+      if (!isNaN(lat) && !isNaN(lng)) return { lat, lng }
+    }
+    return null
+  })
+
+  // Si l'URL change (Marc tape de nouvelles coords), on recentre
+  useEffect(() => {
+    if (urlLat && urlLng) {
+      const lat = parseFloat(urlLat), lng = parseFloat(urlLng)
+      if (!isNaN(lat) && !isNaN(lng)) setClickPos({ lat, lng })
+    }
+  }, [urlLat, urlLng])
   const [tileStyle, setTileStyle] = useState<TileStyle>('dark')
   const [useCluster, setUseCluster] = useState(true)
   const [semanticFilter, setSemanticFilter] = useState<string | null>(null)

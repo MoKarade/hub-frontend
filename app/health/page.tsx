@@ -41,6 +41,7 @@ import {
 import { api, type HealthSummaryResponse } from '@/lib/api'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
+import { DayAnalyzer } from '@/components/day-analyzer'
 
 // ── Formatters ─────────────────────────────────────────────────────────────────
 
@@ -246,7 +247,7 @@ export default function HealthPage() {
 
         {/* ── Today Hero Strip ────────────────────────────────────────────── */}
         {stats.length > 0 && (
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-6">
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-4">
             {hero.map(({ metric, label, emoji }) => {
               const s = byMetric[metric]
               const meta = metaOf(metric)
@@ -257,6 +258,11 @@ export default function HealthPage() {
             })}
           </div>
         )}
+
+        {/* ── Analyse du jour (avec date picker + score + encouragements) ── */}
+        <div className="mb-6">
+          <DayAnalyzer />
+        </div>
 
         {/* ── Sections par catégorie ──────────────────────────────────────── */}
         <div className="space-y-8">

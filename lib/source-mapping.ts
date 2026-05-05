@@ -18,6 +18,7 @@ import {
   Users,
   CheckSquare,
   Youtube,
+  Newspaper,
   Database,
 } from 'lucide-react'
 
@@ -143,6 +144,17 @@ const MAPPINGS: Array<{
       href: '/youtube',
       icon: Youtube,
       idColumns: ['id', 'video_id'],
+    },
+  },
+  {
+    tables: ['news_articles'],
+    source: {
+      id: 'news',
+      label: 'Actualites',
+      href: '/news',
+      icon: Newspaper,
+      idColumns: ['id'],
+      dateColumn: 'published_at',
     },
   },
 ]
