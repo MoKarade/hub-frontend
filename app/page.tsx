@@ -17,11 +17,12 @@
  *   - HubStatus footer en mode dashboard uniquement
  */
 
-import { useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { Sidebar } from '@/components/sidebar'
 import { HubStatus } from '@/components/hub-status'
 import { HubChat } from '@/components/hub-chat'
-import { DashboardGrid } from '@/components/dashboard-grid'
+import { HubDashboard } from '@/components/hub-dashboard'
 import { useCommandK } from '@/components/command-k'
 import { Brain, LayoutGrid, MessageSquare } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -29,8 +30,37 @@ import { cn } from '@/lib/utils'
 type ViewMode = 'chat' | 'dashboard'
 
 export default function HomePage() {
+  return (
+    <Suspense fallback={null}>
+      <HomeInner />
+    </Suspense>
+  )
+}
+
+function HomeInner() {
   const { open: openCommandK } = useCommandK()
-  const [view, setView] = useState<ViewMode>('chat')
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+  const askParam = searchParams.get('ask')
+
+  // Si on arrive avec ?ask=... (depuis Cmd+K ou /search?q=...), on bascule
+  // automatiquement en mode chat pour traiter la question.
+  // Defaut sinon = dashboard (vrai hub d'infos). Chat reste a un clic via le toggle.
+  const [view, setView] = useState<ViewMode>(askParam ? 'chat' : 'dashboard')
+
+  // Quand l'URL change vers ?ask=..., bascule en chat
+  useEffect(() => {
+    if (askParam) setView('chat')
+  }, [askParam])
+
+  // Apres consommation du ?ask= par HubChat, on nettoie l'URL pour ne pas re-poster
+  // la meme question si Marc reload la page
+  const clearAskParam = () => {
+    if (askParam) {
+      router.replace(pathname, { scroll: false })
+    }
+  }
 
   // Salutation locale (pas SSR pour eviter mismatch)
   const now = new Date()
@@ -108,12 +138,16 @@ export default function HomePage() {
         {/* ── Vue principale ── */}
         {view === 'chat' ? (
           <div className="flex-1 min-h-0">
-            <HubChat onOpenCommandK={openCommandK} />
+            <HubChat
+              onOpenCommandK={openCommandK}
+              initialQuestion={askParam ?? undefined}
+              onInitialConsumed={clearAskParam}
+            />
           </div>
         ) : (
           <>
-            <div className="flex-1 min-h-0 space-y-4">
-              <DashboardGrid />
+            <div className="flex-1 min-h-0 overflow-y-auto pb-4">
+              <HubDashboard />
             </div>
             <div className="mt-4 shrink-0">
               <HubStatus />

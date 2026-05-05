@@ -21,7 +21,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard,
-  Search,
   Sparkles,
   Wallet,
   MapPin,
@@ -61,8 +60,7 @@ const SECTIONS: NavSection[] = [
   {
     title: 'Vue d\'ensemble',
     items: [
-      { label: 'Dashboard',  href: '/',         icon: LayoutDashboard },
-      { label: 'Recherche',  href: '/search',   icon: Search },
+      { label: 'Hub',        href: '/',         icon: LayoutDashboard },
       { label: 'Insights',   href: '/insights', icon: Sparkles },
     ],
   },

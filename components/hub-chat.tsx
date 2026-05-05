@@ -28,8 +28,11 @@ import {
   Brain,
   ChevronDown,
   ChevronUp,
+  ArrowRight,
+  ExternalLink,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { sourceForSql, rowLink } from '@/lib/source-mapping'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -135,7 +138,17 @@ function saveHistory(msgs: ChatMessage[]) {
 
 // ─── Composant principal ─────────────────────────────────────────────────────
 
-export function HubChat({ onOpenCommandK }: { onOpenCommandK?: () => void }) {
+export function HubChat({
+  onOpenCommandK,
+  initialQuestion,
+  onInitialConsumed,
+}: {
+  onOpenCommandK?: () => void
+  /** Question pre-remplie au mount (ex: vient de /search?q=... ou Cmd+K). */
+  initialQuestion?: string
+  /** Callback appele apres consommation de l'initialQuestion. */
+  onInitialConsumed?: () => void
+}) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [stage, setStage] = useState<StreamStage>('idle')
@@ -322,6 +335,22 @@ export function HubChat({ onOpenCommandK }: { onOpenCommandK?: () => void }) {
     return () => abortRef.current?.abort()
   }, [])
 
+  // Auto-envoi de l'initialQuestion si fourni (vient de /search?q=... ou Cmd+K).
+  // Une seule fois (guard sur le ref pour eviter relances en re-render).
+  const initialSentRef = useRef(false)
+  useEffect(() => {
+    if (
+      !initialSentRef.current &&
+      initialQuestion &&
+      initialQuestion.trim().length >= 3 &&
+      !isStreaming
+    ) {
+      initialSentRef.current = true
+      void sendMessage(initialQuestion)
+      onInitialConsumed?.()
+    }
+  }, [initialQuestion, isStreaming, sendMessage, onInitialConsumed])
+
   // Ctrl+K / Cmd+K shortcut + Enter to send
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -504,9 +533,12 @@ export function HubChat({ onOpenCommandK }: { onOpenCommandK?: () => void }) {
 
 function MessageView({ message }: { message: ChatMessage }) {
   const [showSql, setShowSql] = useState(false)
-  const [showRows, setShowRows] = useState(false)
+  const [showRows, setShowRows] = useState(true) // ouvert par defaut : Marc voit ses data direct
 
   const isUser = message.role === 'user'
+  const source = !isUser ? sourceForSql(message.sql) : null
+  const SourceIcon = source?.icon
+  const hasRows = !isUser && message.rows && message.rows.length > 0
 
   return (
     <div className={cn('mb-3', isUser ? 'flex justify-end' : '')}>
@@ -522,8 +554,47 @@ function MessageView({ message }: { message: ChatMessage }) {
         <p className={cn('text-sm leading-relaxed whitespace-pre-wrap', isUser && 'font-medium')}>
           {message.content}
         </p>
+
+        {/* CTA principal "Voir dans X" : visible des qu'il y a une source identifiee */}
+        {!isUser && source && source.id !== 'data' && (
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <Link
+              href={source.href}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono bg-accent/10 border border-accent/30 text-accent rounded-md hover:bg-accent/20 transition-colors"
+            >
+              {SourceIcon && <SourceIcon size={11} />}
+              <span>Voir dans {source.label}</span>
+              <ArrowRight size={10} />
+            </Link>
+            {hasRows && message.rows && message.rows.length === 1 && (() => {
+              const link = rowLink(source, message.rows[0])
+              return link ? (
+                <Link
+                  href={link}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono bg-ink-800 border border-ink-700 text-ink-300 rounded-md hover:border-accent/40 hover:text-ink-100 transition-colors"
+                >
+                  <ExternalLink size={10} />
+                  Ouvrir
+                </Link>
+              ) : null
+            })()}
+          </div>
+        )}
+
+        {/* Toggles SQL/rows : metadata techniques */}
         {!isUser && (message.sql || (message.rows && message.rows.length > 0)) && (
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-mono text-ink-500">
+            {typeof message.row_count === 'number' && message.row_count > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowRows((v) => !v)}
+                className="hover:text-ink-300 transition-colors flex items-center gap-1"
+              >
+                <Database size={10} />
+                {message.row_count} resultat{message.row_count > 1 ? 's' : ''}
+                {showRows ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+              </button>
+            )}
             {message.sql && (
               <button
                 type="button"
@@ -534,50 +605,67 @@ function MessageView({ message }: { message: ChatMessage }) {
                 SQL {showSql ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
               </button>
             )}
-            {typeof message.row_count === 'number' && (
-              <button
-                type="button"
-                onClick={() => setShowRows((v) => !v)}
-                className="hover:text-ink-300 transition-colors flex items-center gap-1"
-              >
-                <Database size={10} />
-                {message.row_count} ligne(s) {showRows ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-              </button>
-            )}
           </div>
         )}
+
         {showSql && message.sql && (
           <pre className="mt-2 text-[10px] text-ink-300 bg-ink-950 p-2 rounded overflow-x-auto">
             {message.sql}
           </pre>
         )}
-        {showRows && message.rows && message.rows.length > 0 && (
-          <div className="mt-2 max-h-64 overflow-auto">
-            <table className="w-full text-[10px] font-mono">
-              <thead className="bg-ink-950 sticky top-0">
+
+        {/* Table des rows : si plusieurs lignes, on rend chaque ligne cliquable
+            quand on detecte un ID/date exploitable. */}
+        {showRows && hasRows && message.rows && (
+          <div className="mt-2 max-h-80 overflow-auto rounded border border-ink-800">
+            <table className="w-full text-[11px]">
+              <thead className="bg-ink-900 sticky top-0 z-10">
                 <tr>
                   {Object.keys(message.rows[0]).map((k) => (
-                    <th key={k} className="text-left px-2 py-1 text-ink-500 border-b border-ink-800">
+                    <th
+                      key={k}
+                      className="text-left px-2 py-1.5 font-mono text-[10px] uppercase tracking-wider text-ink-500 border-b border-ink-800"
+                    >
                       {k}
                     </th>
                   ))}
+                  {source && source.id !== 'data' && (
+                    <th className="w-8 border-b border-ink-800" />
+                  )}
                 </tr>
               </thead>
               <tbody>
-                {message.rows.slice(0, 50).map((row, i) => (
-                  <tr key={i} className="border-b border-ink-900/50">
-                    {Object.values(row).map((v, j) => (
-                      <td key={j} className="px-2 py-1 text-ink-300">
-                        {String(v ?? '')}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
+                {message.rows.slice(0, 50).map((row, i) => {
+                  const link = source ? rowLink(source, row) : null
+                  return (
+                    <tr
+                      key={i}
+                      className={cn(
+                        'border-b border-ink-900/50 transition-colors',
+                        link ? 'hover:bg-accent/5 cursor-pointer group' : 'hover:bg-ink-800/30',
+                      )}
+                      onClick={() => {
+                        if (link) window.location.href = link
+                      }}
+                    >
+                      {Object.values(row).map((v, j) => (
+                        <td key={j} className="px-2 py-1.5 text-ink-200 whitespace-nowrap">
+                          {formatCell(v)}
+                        </td>
+                      ))}
+                      {source && source.id !== 'data' && (
+                        <td className="px-1 text-ink-600 group-hover:text-accent">
+                          {link && <ArrowRight size={11} />}
+                        </td>
+                      )}
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
             {message.rows.length > 50 && (
-              <div className="text-[10px] text-ink-500 italic px-2 py-1">
-                {message.rows.length - 50} autres lignes…
+              <div className="text-[10px] text-ink-500 italic px-2 py-1.5 bg-ink-900 border-t border-ink-800">
+                + {message.rows.length - 50} autres lignes — affine ta question pour voir plus
               </div>
             )}
           </div>
@@ -585,4 +673,44 @@ function MessageView({ message }: { message: ChatMessage }) {
       </div>
     </div>
   )
+}
+
+/**
+ * Format affichable d'une cellule de table : dates lisibles, montants, troncate
+ * des longues strings. Garde le rendu compact mais humain.
+ */
+function formatCell(v: unknown): string {
+  if (v === null || v === undefined || v === '') return '—'
+  // Dates ISO -> format court
+  if (typeof v === 'string') {
+    if (/^\d{4}-\d{2}-\d{2}T/.test(v)) {
+      try {
+        return new Date(v).toLocaleString('fr-CA', {
+          dateStyle: 'short',
+          timeStyle: 'short',
+        })
+      } catch {
+        return v
+      }
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+      try {
+        return new Date(v).toLocaleDateString('fr-CA', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        })
+      } catch {
+        return v
+      }
+    }
+    if (v.length > 80) return v.slice(0, 77) + '…'
+    return v
+  }
+  if (typeof v === 'number') {
+    if (Number.isInteger(v)) return v.toLocaleString('fr-CA')
+    return v.toFixed(2)
+  }
+  if (typeof v === 'boolean') return v ? 'oui' : 'non'
+  return String(v)
 }
