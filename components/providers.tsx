@@ -15,11 +15,16 @@
 
 import type { ReactNode } from 'react'
 import { LayoutProvider } from '@/lib/layout-context'
+import { CommandKProvider } from '@/components/command-k'
 
 interface ProvidersProps {
   children: ReactNode
 }
 
 export function Providers({ children }: ProvidersProps) {
-  return <LayoutProvider>{children}</LayoutProvider>
+  return (
+    <LayoutProvider>
+      <CommandKProvider>{children}</CommandKProvider>
+    </LayoutProvider>
+  )
 }
