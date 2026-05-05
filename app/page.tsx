@@ -7,7 +7,7 @@
  * Maintenant = chat conversationnel plein ecran avec :
  *   - Salutation contextuelle compacte en header
  *   - HubChat occupe la majorite de l'ecran
- *   - Cmd+K pour recherche universelle (overlay global via CommandKProvider)
+ *   - Ctrl+K (Cmd+K sur Mac) pour recherche universelle (overlay global via CommandKProvider)
  *   - Toggle pour afficher le dashboard widgets (ancien comportement) en backup
  *
  * Architecture :
@@ -59,7 +59,7 @@ export default function HomePage() {
             </p>
           </div>
 
-          {/* View toggle + Cmd+K */}
+          {/* View toggle + Ctrl+K */}
           <div className="flex items-center gap-2 shrink-0">
             <div className="flex items-center bg-ink-900 border border-ink-700 rounded-md p-0.5">
               <button
@@ -97,10 +97,10 @@ export default function HomePage() {
               type="button"
               onClick={openCommandK}
               className="px-2.5 py-1 text-[11px] font-mono bg-ink-900 border border-ink-700 rounded-md hover:border-accent/40 hover:text-ink-100 transition-colors text-ink-400 flex items-center gap-1.5"
-              title="Recherche universelle (Cmd+K)"
+              title="Recherche universelle (Ctrl+K)"
             >
               <Brain size={11} />
-              <span className="hidden sm:inline">⌘K</span>
+              <span className="hidden sm:inline">Ctrl+K</span>
             </button>
           </div>
         </header>

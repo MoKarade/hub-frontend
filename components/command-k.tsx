@@ -1,13 +1,13 @@
 'use client'
 
 /**
- * CommandK — Recherche universelle / palette de commandes (Cmd+K).
+ * CommandK — Recherche universelle / palette de commandes (Ctrl+K, Cmd+K sur Mac).
  *
  * Modal centrée style Spotlight / Linear / Raycast :
  *   - Input recherche en haut, focus auto
  *   - Resultats categorises : Pages, Questions recentes, Actions rapides
  *   - Nav clavier : Up/Down navigue, Enter selectionne, Esc ferme
- *   - Cmd+K toggle global (handler dans CommandKProvider)
+ *   - Ctrl+K (Cmd+K sur Mac) toggle global (handler dans CommandKProvider)
  *
  * Indexe :
  *   - Toutes les routes du sidebar (Dashboard, Finances, Locations, etc.)
@@ -42,7 +42,6 @@ import {
   History,
   Zap,
   ArrowRight,
-  Command,
   X,
   type LucideIcon,
 } from 'lucide-react'
@@ -383,8 +382,8 @@ export function CommandK({
             autoComplete="off"
             spellCheck={false}
           />
-          <kbd className="text-[10px] font-mono text-ink-500 px-1.5 py-0.5 rounded border border-ink-700 hidden sm:flex items-center gap-1">
-            <Command size={9} /> K
+          <kbd className="text-[10px] font-mono text-ink-500 px-1.5 py-0.5 rounded border border-ink-700 hidden sm:inline-flex">
+            Ctrl+K
           </kbd>
           <button
             type="button"
@@ -513,11 +512,11 @@ export function CommandKProvider({ children }: { children: React.ReactNode }) {
   const open = useCallback(() => setIsOpen(true), [])
   const close = useCallback(() => setIsOpen(false), [])
 
-  // Cmd+K / Ctrl+K global toggle
+  // Ctrl+K (Cmd+K sur Mac) global toggle
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        // Pas si focus dans un input qui doit traiter Cmd+K (rare)
+        // Pas si focus dans un input qui doit traiter Ctrl+K (rare)
         e.preventDefault()
         setIsOpen((v) => !v)
       }

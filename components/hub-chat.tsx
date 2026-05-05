@@ -11,7 +11,7 @@
  *   - Affichage progressif : stage -> sql -> rows -> tokens
  *   - Cards de resultats riches (table inline pour rows, sql collapsible)
  *
- * Backup : `Cmd+K` ouvre l'overlay UniversalSearch pour deep-dive.
+ * Backup : `Ctrl+K` (Cmd+K sur Mac) ouvre l'overlay UniversalSearch pour deep-dive.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -28,7 +28,6 @@ import {
   Brain,
   ChevronDown,
   ChevronUp,
-  Command,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -323,7 +322,7 @@ export function HubChat({ onOpenCommandK }: { onOpenCommandK?: () => void }) {
     return () => abortRef.current?.abort()
   }, [])
 
-  // Cmd+K shortcut + Enter to send
+  // Ctrl+K / Cmd+K shortcut + Enter to send
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -370,11 +369,10 @@ export function HubChat({ onOpenCommandK }: { onOpenCommandK?: () => void }) {
               type="button"
               onClick={onOpenCommandK}
               className="text-[10px] font-mono uppercase tracking-wider text-ink-400 hover:text-accent transition-colors px-2 py-1 rounded border border-ink-700 hover:border-accent flex items-center gap-1.5"
-              title="Recherche universelle (Cmd+K)"
+              title="Recherche universelle (Ctrl+K)"
             >
-              <Command size={10} />
               <Search size={10} />
-              <span>K</span>
+              <span>Ctrl+K</span>
             </button>
           )}
           {messages.length > 0 && (
