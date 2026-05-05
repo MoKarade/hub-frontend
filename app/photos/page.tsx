@@ -15,7 +15,8 @@ import {
   Grid3X3,
   Map as MapIcon,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, Suspense } from 'react'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import useSWR, { mutate as swrMutate } from 'swr'
 import { api, type PhotoItem, type PhotosStatsResponse } from '@/lib/api'
@@ -43,6 +44,20 @@ function thumbUrl(mediaId: string, size = 200): string {
 }
 
 export default function PhotosPage() {
+  return (
+    <Suspense fallback={null}>
+      <PhotosPageInner />
+    </Suspense>
+  )
+}
+
+function PhotosPageInner() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+  const idParam = searchParams.get('id')
+  const dateParam = searchParams.get('date')
+
   const [syncing, setSyncing] = useState(false)
   const [enriching, setEnriching] = useState(false)
   const [view, setView] = useState<'grid' | 'map'>('grid')
@@ -51,8 +66,8 @@ export default function PhotosPage() {
   const [activeCamera, setActiveCamera] = useState<string | null>(null)
   const [activeLocation, setActiveLocation] = useState<string | null>(null)
   const [onlyGeo, setOnlyGeo] = useState(false)
-  const [since, setSince] = useState('')
-  const [until, setUntil] = useState('')
+  const [since, setSince] = useState(dateParam ?? '')
+  const [until, setUntil] = useState(dateParam ?? '')
   const [sort, setSort] = useState<SortField>('date_desc')
   const [showFilters, setShowFilters] = useState(false)
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null)
@@ -113,6 +128,18 @@ export default function PhotosPage() {
     }
     return sorted
   }, [photos, activeYear, activeCamera, activeLocation, onlyGeo, sort])
+
+  // Si on arrive avec ?id=<uuid>, ouvre la lightbox sur cette photo une fois la
+  // liste chargee. Ensuite nettoie l'URL pour eviter de re-ouvrir au reload.
+  useEffect(() => {
+    if (idParam && visible.length > 0) {
+      const idx = visible.findIndex((p) => p.id === idParam)
+      if (idx >= 0) {
+        setLightboxIdx(idx)
+        router.replace(pathname, { scroll: false })
+      }
+    }
+  }, [idParam, visible, router, pathname])
 
   async function handleSync() {
     // Picker API : ouvre la fenetre Google Picker

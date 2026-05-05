@@ -21,7 +21,8 @@ import {
   Search,
   Calendar as CalendarMini,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, Suspense } from 'react'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import useSWR, { mutate as swrMutate } from 'swr'
 import {
   startOfWeek,
@@ -75,8 +76,22 @@ const HOUR_HEIGHT = 48 // px per hour
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 
 export default function CalendarPage() {
+  return (
+    <Suspense fallback={null}>
+      <CalendarPageInner />
+    </Suspense>
+  )
+}
+
+function CalendarPageInner() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+  const idParam = searchParams.get('id')
+  const dateParam = searchParams.get('date')
+
   const [view, setView] = useState<ViewMode>('week')
-  const [anchor, setAnchor] = useState<Date>(new Date())
+  const [anchor, setAnchor] = useState<Date>(dateParam ? new Date(dateParam) : new Date())
   const [selectedEvent, setSelectedEvent] = useState<CalEventItem | null>(null)
   const [search, setSearch] = useState('')
   const [syncing, setSyncing] = useState(false)
@@ -93,6 +108,17 @@ export default function CalendarPage() {
         limit: 1000,
       })
   )
+
+  // Si on arrive avec ?id=<uuid>, ouvre l'event en modal des qu'il est charge.
+  useEffect(() => {
+    if (idParam && events && events.length > 0) {
+      const ev = events.find((e) => e.id === idParam)
+      if (ev) {
+        setSelectedEvent(ev)
+        router.replace(pathname, { scroll: false })
+      }
+    }
+  }, [idParam, events, router, pathname])
   const { data: stats } = useSWR<CalStatsResponse>('cal-stats', () => api.calendar.stats())
 
   async function handleSync() {

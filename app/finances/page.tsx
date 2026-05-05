@@ -11,7 +11,8 @@ import {
 } from 'lucide-react'
 import { ComingSoon } from '@/components/coming-soon'
 import useSWR from 'swr'
-import { useMemo, useState, type ComponentType } from 'react'
+import { useMemo, useState, Suspense, type ComponentType } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { api, type Account } from '@/lib/api'
 import { formatCurrency, formatDate, signedAmount, cn } from '@/lib/utils'
 
@@ -25,10 +26,32 @@ const TABS: { id: TabId; label: string; icon: ComponentType<{ size?: number; cla
 ]
 
 export default function FinancesPage() {
+  return (
+    <Suspense fallback={null}>
+      <FinancesPageInner />
+    </Suspense>
+  )
+}
+
+function FinancesPageInner() {
+  const searchParams = useSearchParams()
+  const dateParam = searchParams.get('date')
+  // Si on arrive avec ?date=YYYY-MM-DD, ouvre une fenetre de +/- 7 jours
+  // autour pour montrer le contexte de la transaction.
   const [tab, setTab] = useState<TabId>('banking')
   const [accountId, setAccountId] = useState<string | undefined>()
-  const [startDate, setStartDate] = useState<string>('')
-  const [endDate, setEndDate] = useState<string>('')
+  const [startDate, setStartDate] = useState<string>(() => {
+    if (!dateParam) return ''
+    const d = new Date(dateParam)
+    d.setDate(d.getDate() - 7)
+    return d.toISOString().slice(0, 10)
+  })
+  const [endDate, setEndDate] = useState<string>(() => {
+    if (!dateParam) return ''
+    const d = new Date(dateParam)
+    d.setDate(d.getDate() + 7)
+    return d.toISOString().slice(0, 10)
+  })
   const [search, setSearch] = useState('')
 
   const { data: accounts, mutate: refetchAccounts } = useSWR(

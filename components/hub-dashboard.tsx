@@ -538,11 +538,12 @@ function TransactionRow({ t }: { t: Transaction }) {
 // ─── Photo thumbnail ──────────────────────────────────────────────────────────
 
 function PhotoThumb({ photo }: { photo: Photo }) {
-  // Use the proxy thumbnail endpoint (return SVG placeholder if baseUrl expired)
-  const thumbUrl = `/api/v1/photos/${photo.id}/thumbnail?w=200&h=200`
+  // Endpoint backend : /v1/photos/thumb/{media_id}?size=200
+  // Si baseUrl Google a expire (>1h), retourne un SVG placeholder gris (200 OK).
+  const thumbUrl = `/api/v1/photos/thumb/${encodeURIComponent(photo.media_id)}?size=200`
   return (
     <Link
-      href="/photos"
+      href={`/photos?id=${photo.id}`}
       className="aspect-square block relative rounded overflow-hidden bg-ink-800 group"
       title={photo.filename || 'Photo'}
     >

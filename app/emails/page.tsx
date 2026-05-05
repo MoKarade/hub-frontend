@@ -21,7 +21,8 @@ import {
   Filter,
   Calendar,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, Suspense } from 'react'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import useSWR, { mutate as swrMutate } from 'swr'
 import {
   api,
@@ -72,17 +73,40 @@ const PRIMARY_LABELS = [
 ]
 
 export default function EmailsPage() {
+  return (
+    <Suspense fallback={null}>
+      <EmailsPageInner />
+    </Suspense>
+  )
+}
+
+function EmailsPageInner() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+  const idParam = searchParams.get('id')
+  const dateParam = searchParams.get('date')
+
   const [search, setSearch] = useState('')
   const [senderFilter, setSenderFilter] = useState<string | null>(null)
   const [labelFilter, setLabelFilter] = useState<string | null>(null)
   const [hasAttachment, setHasAttachment] = useState<boolean | null>(null)
   const [isUnread, setIsUnread] = useState<boolean | null>(null)
-  const [since, setSince] = useState<string>('')
-  const [until, setUntil] = useState<string>('')
+  const [since, setSince] = useState<string>(dateParam ?? '')
+  const [until, setUntil] = useState<string>(dateParam ?? '')
   const [sort, setSort] = useState<SortField>('date_desc')
   const [showFilters, setShowFilters] = useState(false)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(idParam)
   const [syncing, setSyncing] = useState(false)
+
+  // Si on arrive avec ?id=..., ouvre le modal et nettoie l'URL
+  // (pour eviter de re-ouvrir si Marc reload).
+  useEffect(() => {
+    if (idParam) {
+      setSelectedId(idParam)
+      router.replace(pathname, { scroll: false })
+    }
+  }, [idParam, router, pathname])
 
   const filters = useMemo(
     () => ({

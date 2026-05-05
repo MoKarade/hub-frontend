@@ -21,7 +21,8 @@ import {
   Pencil,
   Save,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, Suspense } from 'react'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import useSWR, { mutate as swrMutate } from 'swr'
 import { api, type TaskItem, type TasksStatsResponse } from '@/lib/api'
 import { toast } from '@/lib/toast'
@@ -38,8 +39,23 @@ function colorFor(id: string): string {
 type Filter = 'pending' | 'completed' | 'overdue' | 'all'
 
 export default function TasksPage() {
+  return (
+    <Suspense fallback={null}>
+      <TasksPageInner />
+    </Suspense>
+  )
+}
+
+function TasksPageInner() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+  const idParam = searchParams.get('id')
+
   const [syncing, setSyncing] = useState(false)
-  const [filter, setFilter] = useState<Filter>('pending')
+  // Si on arrive avec ?id=, on bascule sur 'all' pour ne pas filtrer la tache
+  // par accident (peut etre completee).
+  const [filter, setFilter] = useState<Filter>(idParam ? 'all' : 'pending')
   const [activeList, setActiveList] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [selected, setSelected] = useState<TaskItem | null>(null)
@@ -68,6 +84,17 @@ export default function TasksPage() {
       (t) => !t.is_completed && t.due_at && new Date(t.due_at) < now
     )
   }, [tasks, filter])
+
+  // Si on arrive avec ?id=<uuid>, ouvre la tache au mount
+  useEffect(() => {
+    if (idParam && tasks && tasks.length > 0) {
+      const t = tasks.find((x) => x.id === idParam)
+      if (t) {
+        setSelected(t)
+        router.replace(pathname, { scroll: false })
+      }
+    }
+  }, [idParam, tasks, router, pathname])
 
   async function handleSync() {
     setSyncing(true)
