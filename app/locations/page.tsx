@@ -80,11 +80,15 @@ export default function LocationsPage() {
 }
 
 function LocationsPageInner() {
-  const activeTab = useActiveTab(TABS, 'tab', 'carte')
-  const { data: stats } = useSWR('locations-stats', () => api.locations.stats())
   const router = useRouter()
   const searchParams = useSearchParams()
   const dateParam = searchParams.get('date')
+  // Si lat+lng presents, force tab=carte (peut centrer + filtrer par date).
+  // Sinon respecte ?tab= ou defaut.
+  const hasCoords = Boolean(searchParams.get('lat') && searchParams.get('lng'))
+  const activeTab = useActiveTab(TABS, 'tab', 'carte')
+  const finalTab = hasCoords ? 'carte' : activeTab
+  const { data: stats } = useSWR('locations-stats', () => api.locations.stats())
 
   const navigateToDay = useCallback((date: string) => {
     const params = new URLSearchParams(searchParams.toString())
@@ -117,12 +121,12 @@ function LocationsPageInner() {
         <InsightsBar />
         <Tabs items={TABS} defaultId="carte" />
 
-        {activeTab === 'carte'   && <CarteTab latestDate={stats?.latest_date ?? null} earliestDate={stats?.earliest_date ?? null} />}
-        {activeTab === 'journee' && <JourneeTab initialDate={dateParam ?? undefined} defaultDate={stats?.latest_date ?? new Date().toISOString().slice(0, 10)} />}
-        {activeTab === 'visites' && <VisitesTab />}
-        {activeTab === 'voyages' && <VoyagesTab onOpenDay={navigateToDay} />}
-        {activeTab === 'stats'   && <StatsTab />}
-        {activeTab === 'lieux'   && <LieuxTab />}
+        {finalTab === 'carte'   && <CarteTab latestDate={stats?.latest_date ?? null} earliestDate={stats?.earliest_date ?? null} />}
+        {finalTab === 'journee' && <JourneeTab initialDate={dateParam ?? undefined} defaultDate={stats?.latest_date ?? new Date().toISOString().slice(0, 10)} />}
+        {finalTab === 'visites' && <VisitesTab />}
+        {finalTab === 'voyages' && <VoyagesTab onOpenDay={navigateToDay} />}
+        {finalTab === 'stats'   && <StatsTab />}
+        {finalTab === 'lieux'   && <LieuxTab />}
 
         <HubStatus />
       </main>
@@ -309,12 +313,14 @@ function CarteTab({ latestDate, earliestDate }: { latestDate: string | null; ear
   const safeEnd = latestDate ?? new Date().toISOString().slice(0, 10)
   const safeStart = earliestDate ?? '2013-01-01'
 
-  // Lit les params URL ?lat=&lng= (depuis ManualCoordsInput) pour centrer la carte
-  // sur un point precis. On les transforme en clickPos pour reutiliser le marker
-  // existant qui highlight la position.
+  // Lit les params URL ?lat=&lng=&date= (depuis ManualCoordsInput / insights / chat IA)
+  // - lat+lng : centre la carte sur le point (via clickPos -> marker highlight)
+  // - date    : adjuste la fenetre temporelle a +/-7 jours autour de cette date
+  //   pour montrer les visits de cette periode (vs derniers 2 mois par defaut).
   const sp = useSearchParams()
   const urlLat = sp.get('lat')
   const urlLng = sp.get('lng')
+  const urlDate = sp.get('date')
 
   // Helper : calcule une date X mois avant la dernière donnée
   const monthsBefore = useCallback((months: number) => {
@@ -322,8 +328,21 @@ function CarteTab({ latestDate, earliestDate }: { latestDate: string | null; ear
     return d.toISOString().slice(0, 10)
   }, [safeEnd])
 
-  const [startDate, setStartDate] = useState(() => monthsBefore(2))
-  const [endDate, setEndDate]     = useState(safeEnd)
+  // Si urlDate fournie : fenetre +/-7j autour. Sinon defaut 2 mois.
+  const [startDate, setStartDate] = useState(() => {
+    if (urlDate) {
+      const d = new Date(urlDate); d.setDate(d.getDate() - 7)
+      return d.toISOString().slice(0, 10)
+    }
+    return monthsBefore(2)
+  })
+  const [endDate, setEndDate] = useState(() => {
+    if (urlDate) {
+      const d = new Date(urlDate); d.setDate(d.getDate() + 7)
+      return d.toISOString().slice(0, 10)
+    }
+    return safeEnd
+  })
   const [mode, setMode]           = useState<MapMode>('visits')
   const [clickPos, setClickPos]   = useState<{ lat: number; lng: number } | null>(() => {
     if (urlLat && urlLng) {
@@ -333,13 +352,21 @@ function CarteTab({ latestDate, earliestDate }: { latestDate: string | null; ear
     return null
   })
 
-  // Si l'URL change (Marc tape de nouvelles coords), on recentre
+  // Si l'URL change (Marc tape de nouvelles coords ou clique un autre insight),
+  // on recentre la carte ET on adjuste la fenetre temporelle si date fournie.
   useEffect(() => {
     if (urlLat && urlLng) {
       const lat = parseFloat(urlLat), lng = parseFloat(urlLng)
       if (!isNaN(lat) && !isNaN(lng)) setClickPos({ lat, lng })
     }
-  }, [urlLat, urlLng])
+    if (urlDate) {
+      const d = new Date(urlDate)
+      const start = new Date(d); start.setDate(start.getDate() - 7)
+      const end = new Date(d); end.setDate(end.getDate() + 7)
+      setStartDate(start.toISOString().slice(0, 10))
+      setEndDate(end.toISOString().slice(0, 10))
+    }
+  }, [urlLat, urlLng, urlDate])
   const [tileStyle, setTileStyle] = useState<TileStyle>('dark')
   const [useCluster, setUseCluster] = useState(true)
   const [semanticFilter, setSemanticFilter] = useState<string | null>(null)

@@ -191,35 +191,74 @@ export function sourceForSql(sql: string | null | undefined): SourceMapping {
  *
  * Convention : /<page>?id=<id> ouvert par la page concernee si supporte,
  * sinon la page ignore le param (no-op gracieux).
+ *
+ * Cas special locations : si la row contient `lat` et `lng`, on les ajoute
+ * pour centrer la carte directement sur la position. Marc 2026-05-05 :
+ * "quand je clique sur un truc du hub ou insight qui touche la localisation
+ *  je veux que ca me mette la carte a la bonne localisation directement
+ *  et la bonne date aussi".
  */
 export function rowLink(
   source: SourceMapping,
   row: Record<string, unknown>,
 ): string | null {
+  // Helper : extrait des coords numeriques depuis la row si dispo
+  const coords = extractCoords(row)
+
   if (!source.idColumns) {
-    // Pas d'ID specifique : si on a une date, filtre par date sur la page
+    // Pas d'ID specifique : on combine date + coords si on les a
+    const params = new URLSearchParams()
     if (source.dateColumn) {
       const v = row[source.dateColumn]
-      if (v) {
-        const dateStr = String(v).slice(0, 10) // YYYY-MM-DD
-        return `${source.href}?date=${dateStr}`
-      }
+      if (v) params.set('date', String(v).slice(0, 10))
     }
-    return null
+    if (coords && source.id === 'locations') {
+      params.set('lat', coords.lat.toFixed(6))
+      params.set('lng', coords.lng.toFixed(6))
+    }
+    return params.toString() ? `${source.href}?${params.toString()}` : null
   }
+
+  // Source avec ID : prefere id, mais on enrichit avec coords pour locations
   for (const col of source.idColumns) {
     const v = row[col]
     if (v != null && v !== '') {
-      return `${source.href}?id=${encodeURIComponent(String(v))}`
+      const params = new URLSearchParams()
+      params.set('id', String(v))
+      if (coords && source.id === 'locations') {
+        params.set('lat', coords.lat.toFixed(6))
+        params.set('lng', coords.lng.toFixed(6))
+      }
+      return `${source.href}?${params.toString()}`
     }
   }
-  // Fallback : si on a un date, link filtre
+  // Fallback : date + coords
+  const params = new URLSearchParams()
   if (source.dateColumn) {
     const v = row[source.dateColumn]
-    if (v) {
-      const dateStr = String(v).slice(0, 10)
-      return `${source.href}?date=${dateStr}`
-    }
+    if (v) params.set('date', String(v).slice(0, 10))
   }
-  return null
+  if (coords && source.id === 'locations') {
+    params.set('lat', coords.lat.toFixed(6))
+    params.set('lng', coords.lng.toFixed(6))
+  }
+  return params.toString() ? `${source.href}?${params.toString()}` : null
+}
+
+/**
+ * Extrait des coordonnees depuis une row si les colonnes lat/lng/latitude/longitude
+ * existent ET sont des nombres valides. Les rows location_visits utilisent lat/lng,
+ * les rows photos utilisent latitude/longitude. On supporte les deux + leurs variantes.
+ */
+function extractCoords(row: Record<string, unknown>): { lat: number; lng: number } | null {
+  const latRaw =
+    row.lat ?? row.latitude ?? row.start_lat ?? row.end_lat ?? null
+  const lngRaw =
+    row.lng ?? row.longitude ?? row.lon ?? row.start_lng ?? row.end_lng ?? null
+  if (latRaw == null || lngRaw == null) return null
+  const lat = typeof latRaw === 'number' ? latRaw : parseFloat(String(latRaw))
+  const lng = typeof lngRaw === 'number' ? lngRaw : parseFloat(String(lngRaw))
+  if (isNaN(lat) || isNaN(lng)) return null
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null
+  return { lat, lng }
 }
