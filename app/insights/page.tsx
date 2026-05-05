@@ -85,8 +85,8 @@ const fetcher = (url: string) => fetch(url).then((r) => {
 })
 
 export default function InsightsPage() {
-  // URL relative -> proxy Next.js next.config -> hub-core :8000
-  const { data, error, isLoading, mutate } = useSWR<InsightsResponse>('/v1/insights', fetcher, {
+  // URL relative -> proxy Next.js next.config rewrites /api/* -> hub-core :8000
+  const { data, error, isLoading, mutate } = useSWR<InsightsResponse>('/api/v1/insights', fetcher, {
     revalidateOnFocus: false,
     refreshInterval: 60000, // 1 min
   })
