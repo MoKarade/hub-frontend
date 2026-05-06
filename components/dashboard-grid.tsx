@@ -130,7 +130,7 @@ export function DashboardGrid() {
         </div>
 
         <div className={SPAN_SM}>
-          <Widget id="insights" title="Insights" icon={Sparkles} badge="Phase 4+" pulse={pulseInsights}>
+          <Widget id="insights" title="Insights" icon={Sparkles} pulse={pulseInsights}>
             <InsightList />
           </Widget>
         </div>
@@ -172,29 +172,13 @@ export function DashboardGrid() {
               </Link>
             }
           >
-            <div className="flex flex-col items-center justify-center py-6 gap-2 text-center">
-              <MapPin size={20} className="text-ink-600" />
-              <p className="text-[12px] text-ink-400">En attente du Google Takeout</p>
-              <p className="text-[10px] text-ink-600 font-mono leading-relaxed">
-                takeout.google.com →<br />
-                Localisation → Records.json
-              </p>
-            </div>
+            <LocationsMiniStats />
           </Widget>
         </div>
 
         <div className={SPAN_FULL}>
-          <Widget id="health" title="Santé" subtitle="Garmin · Google Fit" icon={Activity} badge="Phase 5">
-            <div className="flex flex-col items-center justify-center py-6 gap-2 text-center">
-              <Activity size={20} className="text-ink-600" />
-              <p className="text-sm text-ink-400">Module Garmin + Google Fit</p>
-              <p className="text-[11px] text-ink-600 font-mono">
-                pas · sommeil · fréquence cardiaque · VO2max
-              </p>
-              <span className="mt-2 text-[10px] font-mono text-ink-600 bg-ink-800 border border-ink-700 px-2 py-1 rounded">
-                disponible en Phase 5
-              </span>
-            </div>
+          <Widget id="health" title="Santé" subtitle="Garmin · Google Fit" icon={Activity}>
+            <HealthMiniStats />
           </Widget>
         </div>
 
@@ -227,4 +211,103 @@ export function DashboardGrid() {
       </div>
     </div>
   )
+}
+
+// ── Mini stats live (no fake data) ────────────────────────────────────────────
+
+function LocationsMiniStats() {
+  const url = useMemo(() => `${getBaseUrl()}/v1/locations/stats`, [])
+  const { data } = useEventStats<{
+    total_visits: number
+    unique_places: number
+    home_visits: number
+    earliest_date: string | null
+    latest_date: string | null
+  }>(url)
+
+  if (!data) {
+    return <div className="h-24 skeleton" />
+  }
+  return (
+    <div className="grid grid-cols-3 gap-2 py-2">
+      <MiniTile label="Visites" value={data.total_visits.toLocaleString('fr-CA')} />
+      <MiniTile label="Lieux" value={data.unique_places.toLocaleString('fr-CA')} />
+      <MiniTile label="Maison" value={data.home_visits.toLocaleString('fr-CA')} />
+    </div>
+  )
+}
+
+interface HealthSummary {
+  total_datapoints: number
+  by_metric: Array<{
+    metric: string
+    last_value: number | null
+    last_date: string | null
+  }>
+}
+
+function HealthMiniStats() {
+  const url = useMemo(() => `${getBaseUrl()}/v1/health-data/summary`, [])
+  const { data } = useEventStats<HealthSummary>(url)
+
+  if (!data) {
+    return <div className="h-24 skeleton" />
+  }
+
+  const byMetric = Object.fromEntries(
+    data.by_metric.map((m) => [m.metric, m]),
+  ) as Record<string, HealthSummary['by_metric'][number]>
+
+  const tiles = [
+    { key: 'steps', label: 'Pas', fmt: (v: number) => v.toLocaleString('fr-CA') },
+    { key: 'sleep_seconds', label: 'Sommeil', fmt: (v: number) => `${(v / 3600).toFixed(1)} h` },
+    { key: 'resting_heart_rate', label: 'RHR', fmt: (v: number) => `${v.toFixed(0)} bpm` },
+    { key: 'body_battery', label: 'Battery', fmt: (v: number) => `${v.toFixed(0)}` },
+  ]
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 py-2">
+      {tiles.map((t) => {
+        const m = byMetric[t.key]
+        if (!m || m.last_value === null) return null
+        return <MiniTile key={t.key} label={t.label} value={t.fmt(m.last_value)} />
+      })}
+      {data.total_datapoints === 0 && (
+        <p className="text-xs text-ink-500 col-span-full text-center py-2">
+          Aucune donnée santé encore. Lance un sync depuis /health.
+        </p>
+      )}
+    </div>
+  )
+}
+
+function MiniTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-ink-900/60 border border-ink-800/60 rounded p-2">
+      <div className="text-[10px] text-ink-500 uppercase tracking-wider truncate">
+        {label}
+      </div>
+      <div className="text-base font-semibold font-mono tabular-nums truncate">{value}</div>
+    </div>
+  )
+}
+
+// Mini fetcher : pour ne pas dependre de SWR ici (reste leger)
+function useEventStats<T>(url: string): { data: T | null } {
+  const [data, setData] = useState<T | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    fetch(url)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled) setData(d)
+      })
+      .catch(() => {
+        if (!cancelled) setData(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [url])
+  return { data }
 }
