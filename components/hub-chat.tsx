@@ -46,10 +46,13 @@ import {
   CheckSquare,
   Youtube,
   Newspaper,
+  Volume2,
+  VolumeX,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { sourceForSql, rowLink } from '@/lib/source-mapping'
+import { useVoice } from '@/lib/use-voice'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -238,6 +241,35 @@ export function HubChat({
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
+
+  // ── Voice : STT (input vocal) + TTS (lecture reponse) ──
+  const [voiceTtsEnabled, setVoiceTtsEnabled] = useState(false)
+  const voice = useVoice({
+    lang: 'fr-CA',
+    onTranscript: (text) => {
+      // Auto-envoie le message vocal
+      if (text.trim()) {
+        sendMessage(text.trim())
+      }
+    },
+  })
+
+  // Persiste preference TTS
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem('hubchat_tts')
+      if (v === '1') setVoiceTtsEnabled(true)
+    } catch {
+      /* ignore */
+    }
+  }, [])
+  useEffect(() => {
+    try {
+      localStorage.setItem('hubchat_tts', voiceTtsEnabled ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+  }, [voiceTtsEnabled])
 
   // ─── Hydration localStorage (au mount) ────────────────────────────────────
   useEffect(() => {
@@ -502,6 +534,11 @@ export function HubChat({
           ts: Date.now(),
         }
         appendToConv(convId, assistantMsg)
+
+        // TTS si active
+        if (voiceTtsEnabled && finalAnswer && !finalError) {
+          voice.speak(finalAnswer)
+        }
       } catch (err) {
         if ((err as Error).name === 'AbortError') return
         appendToConv(convId, {
@@ -786,6 +823,13 @@ export function HubChat({
 
       {/* Input bar */}
       <div className="flex-shrink-0">
+        {/* Indicateur d'ecoute vocale */}
+        {voice.status === 'listening' && (
+          <div className="text-[11px] text-data-negative font-mono mb-1 px-2 flex items-center gap-2">
+            <Mic size={11} className="animate-pulse" />
+            J&apos;écoute… {voice.interimTranscript && <span className="text-ink-300 italic">«{voice.interimTranscript}»</span>}
+          </div>
+        )}
         <div className="ga-card focus-within:border-accent/50 transition-colors">
           <textarea
             ref={inputRef}
@@ -795,9 +839,11 @@ export function HubChat({
             placeholder={
               isStreaming
                 ? 'Génération en cours…'
-                : mode === 'data'
-                  ? 'Pose une question sur tes données…'
-                  : 'Discute avec l\'IA…'
+                : voice.status === 'listening'
+                  ? 'En écoute vocale…'
+                  : mode === 'data'
+                    ? 'Pose une question sur tes données…'
+                    : 'Discute avec l\'IA…'
             }
             disabled={isStreaming}
             rows={2}
@@ -811,11 +857,58 @@ export function HubChat({
               </span>
             </div>
             <div className="flex items-center gap-1.5">
+              {/* TTS toggle (lecture vocale des reponses) */}
+              {voice.isTtsSupported && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (voice.status === 'speaking') voice.cancelSpeak()
+                    setVoiceTtsEnabled((v) => !v)
+                  }}
+                  className={cn(
+                    'px-2 py-1 rounded transition-colors flex items-center gap-1 text-[10px] font-mono',
+                    voiceTtsEnabled
+                      ? 'text-accent bg-accent/10 hover:bg-accent/20'
+                      : 'text-ink-500 hover:text-ink-300',
+                  )}
+                  title={
+                    voiceTtsEnabled
+                      ? 'Lecture vocale active (cliquer pour arrêter)'
+                      : 'Activer la lecture vocale des réponses'
+                  }
+                >
+                  {voice.status === 'speaking' ? (
+                    <Volume2 size={11} className="animate-pulse" />
+                  ) : voiceTtsEnabled ? (
+                    <Volume2 size={11} />
+                  ) : (
+                    <VolumeX size={11} />
+                  )}
+                </button>
+              )}
+              {/* STT (input vocal) */}
               <button
                 type="button"
-                disabled
-                className="text-ink-600 px-2 py-1 rounded hover:text-ink-400 transition-colors flex items-center gap-1 text-[10px] font-mono opacity-50"
-                title="Voix (à venir)"
+                onClick={() => {
+                  if (voice.status === 'listening') voice.stopListening()
+                  else voice.startListening()
+                }}
+                disabled={!voice.isSttSupported}
+                className={cn(
+                  'px-2 py-1 rounded transition-colors flex items-center gap-1 text-[10px] font-mono',
+                  voice.status === 'listening'
+                    ? 'text-data-negative bg-data-negative/10 animate-pulse'
+                    : voice.isSttSupported
+                      ? 'text-ink-400 hover:text-accent'
+                      : 'text-ink-600 opacity-40 cursor-not-allowed',
+                )}
+                title={
+                  voice.isSttSupported
+                    ? voice.status === 'listening'
+                      ? "J'écoute... (cliquer pour arrêter)"
+                      : 'Dicter un message (Web Speech API)'
+                    : 'Reconnaissance vocale non supportée par ce navigateur'
+                }
               >
                 <Mic size={11} />
               </button>

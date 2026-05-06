@@ -42,6 +42,7 @@ import {
   Youtube,
   Tv,
   Globe,
+  Gamepad2,
 } from 'lucide-react'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import { cn } from '@/lib/utils'
@@ -81,6 +82,7 @@ const SECTIONS: NavSection[] = [
       { label: 'Tâches',       href: '/tasks',     icon: CheckSquare },
       { label: 'YouTube',      href: '/youtube',   icon: Youtube },
       { label: 'Streaming',    href: '/streaming', icon: Tv },
+      { label: 'Steam',        href: '/steam',     icon: Gamepad2 },
       { label: 'Navigation',   href: '/browser',   icon: Globe },
       { label: 'Actualites',   href: '/news',      icon: Newspaper },
     ],
