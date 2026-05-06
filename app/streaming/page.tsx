@@ -152,7 +152,7 @@ export default function StreamingPage() {
                 (gratuit)
               </li>
               <li>
-                Redirect URI = <code className="font-mono bg-ink-800 px-1">https://hubperso.com/v1/streaming/oauth/callback</code>
+                Redirect URI = <code className="font-mono bg-ink-800 px-1">https://hubperso.com/api/v1/streaming/oauth/callback</code>
               </li>
               <li>
                 Renseigne <code className="font-mono">TRAKT_CLIENT_ID</code> et{' '}
