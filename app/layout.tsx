@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter, JetBrains_Mono } from 'next/font/google'
 import { Providers } from '@/components/providers'
 import { InstallPrompt } from '@/components/install-prompt'
+import { MobileBottomNav } from '@/components/mobile-bottom-nav'
 import { Toaster } from '@/components/toaster'
 import './globals.css'
 
@@ -56,9 +57,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fr" className={`${inter.variable} ${jetbrainsMono.variable}`}>
-      <body className="font-sans">
+      <body className="font-sans pb-[60px] lg:pb-0">
         <Providers>
           {children}
+          <MobileBottomNav />
           <InstallPrompt />
           <Toaster />
         </Providers>

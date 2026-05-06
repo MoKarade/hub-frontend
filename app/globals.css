@@ -101,4 +101,56 @@
   .section-title {
     @apply text-[11px] font-semibold tracking-wider uppercase text-ink-400;
   }
+
+  /* ── Mobile UX (touch targets, scrolling) ──────────────────────────── */
+
+  /* Touch target minimum 44x44 (Apple HIG) / 48x48 (Material) sur les
+     elements cliquables des onglets, boutons d'icone, chips, etc.
+     Applique automatiquement sur mobile via les media query Tailwind. */
+  @media (max-width: 1023px) {
+    /* Augmente les boutons compacts a au moins 40px de hauteur */
+    button[class*="text-xs"],
+    button[class*="text-[10px]"],
+    button[class*="text-[11px]"] {
+      min-height: 40px;
+    }
+    /* Inputs / selects au moins 40px (avant : souvent 28-32px en py-1.5) */
+    input[type="text"],
+    input[type="number"],
+    input[type="date"],
+    input[type="search"],
+    input[type="email"],
+    select,
+    textarea {
+      min-height: 40px;
+      font-size: 16px !important; /* evite le zoom auto iOS sur focus */
+    }
+    /* Chips/pills cliquables (rounded-md text-xs) — touch-friendly */
+    button.rounded,
+    button.rounded-md,
+    button.rounded-lg,
+    button.rounded-full {
+      min-height: 36px;
+    }
+    /* Liens en mode compact (tabs) — au moins 40px */
+    a[class*="text-xs"],
+    a[class*="text-[10px]"] {
+      min-height: 36px;
+    }
+  }
+
+  /* Tabs scrollables horizontalement sur mobile (sans scrollbar) */
+  .tabs-scrollable {
+    @apply flex gap-2 overflow-x-auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .tabs-scrollable::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Tap highlight - garde la couleur accent au lieu du gris par defaut */
+  * {
+    -webkit-tap-highlight-color: rgba(92, 219, 149, 0.15);
+  }
 }
