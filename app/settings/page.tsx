@@ -13,6 +13,7 @@ import { HubStatus } from '@/components/hub-status'
 import { PasswordChecker } from '@/components/password-checker'
 import { BulkPasswordChecker } from '@/components/bulk-password-checker'
 import { PrivacyOsint } from '@/components/privacy-osint'
+import { EnableNotifications } from '@/components/enable-notifications'
 import {
   Mail,
   Image as ImageIcon,
@@ -101,10 +102,28 @@ function SettingsContent() {
   return (
     <div className="space-y-6">
       <GoogleConnectionsSection />
+      <NotificationsSection />
       <SecuritySection />
       <PrivacyOsintSection />
       <PreferencesSection />
     </div>
+  )
+}
+
+function NotificationsSection() {
+  return (
+    <section>
+      <header className="mb-3 flex items-center gap-2">
+        <SettingsIcon size={18} className="text-accent" />
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Notifications natives</h2>
+          <p className="text-sm text-ink-400">
+            Insights quotidiens push directement par l&apos;app · plus besoin de ntfy.sh
+          </p>
+        </div>
+      </header>
+      <EnableNotifications />
+    </section>
   )
 }
 
