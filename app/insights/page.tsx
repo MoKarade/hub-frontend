@@ -9,6 +9,7 @@
  * Pas de fake data — si l'API renvoie 0 insights, on affiche un empty state.
  */
 
+import { useState } from 'react'
 import useSWR from 'swr'
 import Link from 'next/link'
 import { Sidebar } from '@/components/sidebar'
@@ -31,6 +32,9 @@ import {
   Activity,
   Loader2,
   RefreshCw,
+  Search,
+  Filter,
+  X,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -113,6 +117,8 @@ const SEVERITY_STYLES: Record<
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
+type ViewMode = 'flat' | 'grouped'
+
 export default function InsightsPage() {
   const { data, error, isLoading, mutate } = useSWR<InsightsResponse>(
     `${getBaseUrl()}/v1/insights`,
@@ -120,8 +126,43 @@ export default function InsightsPage() {
     { refreshInterval: 5 * 60_000 },  // refresh chaque 5 min
   )
 
-  const insights = data?.insights ?? []
+  const allInsights = data?.insights ?? []
   const bySeverity = data?.by_severity ?? {}
+
+  // Filtres
+  const [severityFilter, setSeverityFilter] = useState<Severity | 'all'>('all')
+  const [sourceFilter, setSourceFilter] = useState<string>('all')
+  const [searchQ, setSearchQ] = useState('')
+  const [viewMode, setViewMode] = useState<ViewMode>('flat')
+
+  // Liste des sources disponibles (deduit live)
+  const availableSources = Array.from(
+    new Set(allInsights.map((i) => i.source)),
+  ).sort()
+
+  // Filtrage applique
+  const insights = allInsights.filter((ins) => {
+    if (severityFilter !== 'all' && ins.severity !== severityFilter) return false
+    if (sourceFilter !== 'all' && ins.source !== sourceFilter) return false
+    if (searchQ.trim()) {
+      const q = searchQ.toLowerCase()
+      if (
+        !ins.title.toLowerCase().includes(q) &&
+        !ins.description.toLowerCase().includes(q)
+      ) {
+        return false
+      }
+    }
+    return true
+  })
+
+  // Group by source pour mode grouped
+  const grouped: Record<string, InsightApi[]> = {}
+  if (viewMode === 'grouped') {
+    insights.forEach((ins) => {
+      ;(grouped[ins.source] ||= []).push(ins)
+    })
+  }
 
   return (
     <div className="flex min-h-screen">
@@ -208,12 +249,136 @@ export default function InsightsPage() {
           </div>
         )}
 
+        {/* Barre de filtres */}
+        {allInsights.length > 0 && (
+          <div className="panel p-3 mb-4 space-y-2">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500" />
+                <input
+                  type="text"
+                  value={searchQ}
+                  onChange={(e) => setSearchQ(e.target.value)}
+                  placeholder="Rechercher dans titre / description..."
+                  className="w-full bg-ink-800 border border-ink-700 rounded-md pl-9 pr-3 py-2 text-xs focus:outline-none focus:border-accent/60"
+                />
+              </div>
+              <div className="flex gap-2">
+                <select
+                  value={sourceFilter}
+                  onChange={(e) => setSourceFilter(e.target.value)}
+                  className="bg-ink-800 border border-ink-700 rounded-md px-3 py-2 text-xs flex-1 sm:flex-none"
+                >
+                  <option value="all">Toutes sources</option>
+                  {availableSources.map((src) => (
+                    <option key={src} value={src}>
+                      {src}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setViewMode(viewMode === 'flat' ? 'grouped' : 'flat')}
+                  className="px-3 py-2 rounded-md text-xs bg-ink-800 border border-ink-700 hover:border-ink-600 inline-flex items-center gap-1.5"
+                  title="Toggle grouper par source"
+                >
+                  <Filter size={11} />
+                  {viewMode === 'flat' ? 'Plat' : 'Groupé'}
+                </button>
+              </div>
+            </div>
+            {/* Severity chips */}
+            <div className="tabs-scrollable sm:flex sm:flex-wrap sm:gap-1">
+              {(['all', 'critical', 'warning', 'info', 'positive'] as const).map((sev) => {
+                const count =
+                  sev === 'all'
+                    ? allInsights.length
+                    : (bySeverity[sev] ?? 0)
+                if (sev !== 'all' && count === 0) return null
+                return (
+                  <button
+                    key={sev}
+                    type="button"
+                    onClick={() => setSeverityFilter(sev)}
+                    className={cn(
+                      'px-2 py-1 rounded text-[11px] whitespace-nowrap shrink-0 inline-flex items-center gap-1.5',
+                      severityFilter === sev
+                        ? 'bg-accent/15 border border-accent/40 text-accent'
+                        : 'bg-ink-800 border border-ink-700 text-ink-400 hover:border-ink-600',
+                    )}
+                  >
+                    {sev !== 'all' && (
+                      <span
+                        className={cn(
+                          'w-1.5 h-1.5 rounded-full',
+                          SEVERITY_STYLES[sev as Severity].dot,
+                        )}
+                      />
+                    )}
+                    {sev === 'all' ? 'Tout' : sev}
+                    <span className="font-mono text-ink-500">({count})</span>
+                  </button>
+                )
+              })}
+              {(severityFilter !== 'all' || sourceFilter !== 'all' || searchQ) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSeverityFilter('all')
+                    setSourceFilter('all')
+                    setSearchQ('')
+                  }}
+                  className="px-2 py-1 rounded text-[11px] text-ink-500 hover:text-data-negative inline-flex items-center gap-1"
+                >
+                  <X size={10} /> reset
+                </button>
+              )}
+            </div>
+            {insights.length !== allInsights.length && (
+              <p className="text-[10px] text-ink-500 font-mono">
+                {insights.length} / {allInsights.length} insights affichés
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Grid des insights live */}
-        {insights.length > 0 && (
+        {insights.length > 0 && viewMode === 'flat' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
             {insights.map((insight, i) => (
               <InsightCardView key={i} insight={insight} />
             ))}
+          </div>
+        )}
+
+        {/* Vue groupée par source */}
+        {insights.length > 0 && viewMode === 'grouped' && (
+          <div className="space-y-4 mb-6">
+            {Object.entries(grouped)
+              .sort(([, a], [, b]) => b.length - a.length)
+              .map(([source, items]) => (
+                <div key={source}>
+                  <h2 className="text-xs font-semibold uppercase tracking-wider text-ink-400 mb-2 flex items-center gap-2">
+                    <span className="w-1 h-4 bg-accent/60 rounded" />
+                    {source}
+                    <span className="font-mono text-ink-500 normal-case">
+                      ({items.length})
+                    </span>
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {items.map((insight, i) => (
+                      <InsightCardView key={i} insight={insight} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+          </div>
+        )}
+
+        {/* Empty filtré */}
+        {allInsights.length > 0 && insights.length === 0 && (
+          <div className="ga-card p-6 mb-4 text-center text-xs text-ink-400">
+            Aucun insight ne correspond aux filtres. Reset pour tout voir.
           </div>
         )}
 

@@ -26,6 +26,7 @@ import {
 import { Sidebar } from '@/components/sidebar'
 import { Widget } from '@/components/widget'
 import { HubStatus } from '@/components/hub-status'
+import { MeChartsSection } from '@/components/me-charts'
 import { getBaseUrl } from '@/lib/api'
 
 interface MeDashboard {
@@ -337,6 +338,13 @@ export default function MePage() {
                 </div>
               </Widget>
             </div>
+
+            {/* ── Tendances graphiques ── */}
+            <h2 className="text-sm font-semibold text-ink-200 mt-4 flex items-center gap-2">
+              <span className="w-1 h-4 bg-accent/60 rounded" />
+              Tendances {data.period_days ? `${data.period_days} derniers jours` : ''}
+            </h2>
+            <MeChartsSection days={data.period_days ?? 30} />
 
             <p className="text-[10px] text-ink-500 font-mono text-center pt-2">
               Calculé le {new Date(data.generated_at).toLocaleString('fr-CA')}

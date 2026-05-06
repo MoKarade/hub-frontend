@@ -44,6 +44,7 @@ import {
   Globe,
   Gamepad2,
   User,
+  Clock,
 } from 'lucide-react'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import { cn } from '@/lib/utils'
@@ -92,8 +93,9 @@ const SECTIONS: NavSection[] = [
   {
     title: 'Système',
     items: [
-      { label: 'Santé du hub', href: '/system/health', icon: Activity },
-      { label: 'Réglages',     href: '/settings',      icon: Settings },
+      { label: 'Santé du hub', href: '/system/health',    icon: Activity },
+      { label: 'Scheduler',    href: '/system/scheduler', icon: Clock },
+      { label: 'Réglages',     href: '/settings',         icon: Settings },
     ],
   },
 ]
