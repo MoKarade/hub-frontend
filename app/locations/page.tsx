@@ -11,7 +11,7 @@ import {
   Maximize2, Minimize2, Loader2, X, type LucideIcon,
 } from 'lucide-react'
 import nextDynamic from 'next/dynamic'
-import { Suspense, useMemo, useState, useCallback, useEffect } from 'react'
+import { Suspense, useMemo, useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import useSWR, { mutate } from 'swr'
 import { api, type LocationVisit, type LocationStats } from '@/lib/api'
@@ -80,15 +80,11 @@ export default function LocationsPage() {
 }
 
 function LocationsPageInner() {
+  const activeTab = useActiveTab(TABS, 'tab', 'carte')
+  const { data: stats } = useSWR('locations-stats', () => api.locations.stats())
   const router = useRouter()
   const searchParams = useSearchParams()
   const dateParam = searchParams.get('date')
-  // Si lat+lng presents, force tab=carte (peut centrer + filtrer par date).
-  // Sinon respecte ?tab= ou defaut.
-  const hasCoords = Boolean(searchParams.get('lat') && searchParams.get('lng'))
-  const activeTab = useActiveTab(TABS, 'tab', 'carte')
-  const finalTab = hasCoords ? 'carte' : activeTab
-  const { data: stats } = useSWR('locations-stats', () => api.locations.stats())
 
   const navigateToDay = useCallback((date: string) => {
     const params = new URLSearchParams(searchParams.toString())
@@ -111,22 +107,19 @@ function LocationsPageInner() {
               Google Maps Timeline · {stats?.earliest_date?.slice(0, 4) ?? '…'} → {stats?.latest_date?.slice(0, 4) ?? '…'}
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <ManualCoordsInput />
-            <IngestButton />
-          </div>
+          <IngestButton />
         </header>
 
         <GlobalStatsStrip stats={stats ?? null} />
         <InsightsBar />
         <Tabs items={TABS} defaultId="carte" />
 
-        {finalTab === 'carte'   && <CarteTab latestDate={stats?.latest_date ?? null} earliestDate={stats?.earliest_date ?? null} />}
-        {finalTab === 'journee' && <JourneeTab initialDate={dateParam ?? undefined} defaultDate={stats?.latest_date ?? new Date().toISOString().slice(0, 10)} />}
-        {finalTab === 'visites' && <VisitesTab />}
-        {finalTab === 'voyages' && <VoyagesTab onOpenDay={navigateToDay} />}
-        {finalTab === 'stats'   && <StatsTab />}
-        {finalTab === 'lieux'   && <LieuxTab />}
+        {activeTab === 'carte'   && <CarteTab latestDate={stats?.latest_date ?? null} earliestDate={stats?.earliest_date ?? null} />}
+        {activeTab === 'journee' && <JourneeTab initialDate={dateParam ?? undefined} defaultDate={stats?.latest_date ?? new Date().toISOString().slice(0, 10)} />}
+        {activeTab === 'visites' && <VisitesTab />}
+        {activeTab === 'voyages' && <VoyagesTab onOpenDay={navigateToDay} />}
+        {activeTab === 'stats'   && <StatsTab />}
+        {activeTab === 'lieux'   && <LieuxTab />}
 
         <HubStatus />
       </main>
@@ -163,106 +156,20 @@ function GlobalStatsStrip({ stats }: { stats: LocationStats | null }) {
   }
 
   return (
-    <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
       {tiles.map((t) => {
         const Icon = t.icon
         return (
           <motion.div key={t.label} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-            className="panel px-3 py-2.5 flex flex-col gap-1">
+            className="panel px-3 py-2.5 flex flex-col gap-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <Icon size={12} className={t.color} />
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-400">{t.label}</span>
+              <Icon size={12} className={cn('shrink-0', t.color)} />
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-400 truncate">{t.label}</span>
             </div>
-            <div className={cn('text-xl font-bold font-mono leading-none', t.color)}>{t.value}</div>
+            <div className={cn('text-lg sm:text-xl font-bold font-mono leading-none truncate', t.color)}>{t.value}</div>
           </motion.div>
         )
       })}
-    </div>
-  )
-}
-
-// ─── ManualCoordsInput ────────────────────────────────────────────────────────
-// Marc 2026-05-05 : "je veux dans mon truc maps pouvoir rentrer moi des coordonnees"
-// Permet de saisir lat,lng pour naviguer rapidement a un point precis sur la carte.
-
-function ManualCoordsInput() {
-  const router = useRouter()
-  const [open, setOpen] = useState(false)
-  const [coords, setCoords] = useState('')
-
-  function handleGo() {
-    const trimmed = coords.trim()
-    if (!trimmed) return
-    // Accepte "lat, lng" ou "lat lng" ou meme une URL Google Maps
-    let lat: number | null = null
-    let lng: number | null = null
-    // URL Google Maps : .../@<lat>,<lng>,...
-    const urlMatch = trimmed.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)
-    if (urlMatch) {
-      lat = parseFloat(urlMatch[1])
-      lng = parseFloat(urlMatch[2])
-    } else {
-      const parts = trimmed.split(/[,\s]+/).filter(Boolean)
-      if (parts.length >= 2) {
-        lat = parseFloat(parts[0])
-        lng = parseFloat(parts[1])
-      }
-    }
-    if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) {
-      alert('Format invalide. Essaie "46.738, -71.243" ou colle une URL Google Maps.')
-      return
-    }
-    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      alert('Coordonnees hors bornes valides.')
-      return
-    }
-    router.push(`/locations?tab=carte&lat=${lat}&lng=${lng}&zoom=15`)
-    setOpen(false)
-    setCoords('')
-  }
-
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="text-[11px] font-mono uppercase tracking-wider text-ink-400 hover:text-accent transition-colors px-3 py-1.5 rounded border border-ink-700 hover:border-accent flex items-center gap-1.5"
-        title="Aller a un point precis"
-      >
-        <Globe size={11} />
-        coords
-      </button>
-    )
-  }
-  return (
-    <div className="flex items-center gap-1.5">
-      <input
-        autoFocus
-        type="text"
-        value={coords}
-        onChange={(e) => setCoords(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') handleGo()
-          if (e.key === 'Escape') { setOpen(false); setCoords('') }
-        }}
-        placeholder="46.738, -71.243"
-        className="bg-ink-900 border border-ink-700 rounded px-2 py-1.5 text-xs font-mono text-ink-100 focus:border-accent/50 outline-none w-48"
-      />
-      <button
-        type="button"
-        onClick={handleGo}
-        className="text-[11px] font-mono uppercase tracking-wider text-accent border-accent/40 px-2 py-1.5 rounded border bg-accent/10 hover:bg-accent/20"
-      >
-        ok
-      </button>
-      <button
-        type="button"
-        onClick={() => { setOpen(false); setCoords('') }}
-        className="text-[11px] text-ink-500 hover:text-ink-300 px-1"
-        title="Annuler"
-      >
-        ×
-      </button>
     </div>
   )
 }
@@ -313,60 +220,16 @@ function CarteTab({ latestDate, earliestDate }: { latestDate: string | null; ear
   const safeEnd = latestDate ?? new Date().toISOString().slice(0, 10)
   const safeStart = earliestDate ?? '2013-01-01'
 
-  // Lit les params URL ?lat=&lng=&date= (depuis ManualCoordsInput / insights / chat IA)
-  // - lat+lng : centre la carte sur le point (via clickPos -> marker highlight)
-  // - date    : adjuste la fenetre temporelle a +/-7 jours autour de cette date
-  //   pour montrer les visits de cette periode (vs derniers 2 mois par defaut).
-  const sp = useSearchParams()
-  const urlLat = sp.get('lat')
-  const urlLng = sp.get('lng')
-  const urlDate = sp.get('date')
-
   // Helper : calcule une date X mois avant la dernière donnée
   const monthsBefore = useCallback((months: number) => {
     const d = new Date(safeEnd); d.setMonth(d.getMonth() - months)
     return d.toISOString().slice(0, 10)
   }, [safeEnd])
 
-  // Si urlDate fournie : fenetre +/-7j autour. Sinon defaut 2 mois.
-  const [startDate, setStartDate] = useState(() => {
-    if (urlDate) {
-      const d = new Date(urlDate); d.setDate(d.getDate() - 7)
-      return d.toISOString().slice(0, 10)
-    }
-    return monthsBefore(2)
-  })
-  const [endDate, setEndDate] = useState(() => {
-    if (urlDate) {
-      const d = new Date(urlDate); d.setDate(d.getDate() + 7)
-      return d.toISOString().slice(0, 10)
-    }
-    return safeEnd
-  })
+  const [startDate, setStartDate] = useState(() => monthsBefore(2))
+  const [endDate, setEndDate]     = useState(safeEnd)
   const [mode, setMode]           = useState<MapMode>('visits')
-  const [clickPos, setClickPos]   = useState<{ lat: number; lng: number } | null>(() => {
-    if (urlLat && urlLng) {
-      const lat = parseFloat(urlLat), lng = parseFloat(urlLng)
-      if (!isNaN(lat) && !isNaN(lng)) return { lat, lng }
-    }
-    return null
-  })
-
-  // Si l'URL change (Marc tape de nouvelles coords ou clique un autre insight),
-  // on recentre la carte ET on adjuste la fenetre temporelle si date fournie.
-  useEffect(() => {
-    if (urlLat && urlLng) {
-      const lat = parseFloat(urlLat), lng = parseFloat(urlLng)
-      if (!isNaN(lat) && !isNaN(lng)) setClickPos({ lat, lng })
-    }
-    if (urlDate) {
-      const d = new Date(urlDate)
-      const start = new Date(d); start.setDate(start.getDate() - 7)
-      const end = new Date(d); end.setDate(end.getDate() + 7)
-      setStartDate(start.toISOString().slice(0, 10))
-      setEndDate(end.toISOString().slice(0, 10))
-    }
-  }, [urlLat, urlLng, urlDate])
+  const [clickPos, setClickPos]   = useState<{ lat: number; lng: number } | null>(null)
   const [tileStyle, setTileStyle] = useState<TileStyle>('dark')
   const [useCluster, setUseCluster] = useState(true)
   const [semanticFilter, setSemanticFilter] = useState<string | null>(null)
@@ -678,13 +541,13 @@ function VisitesTab() {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="panel p-3 flex flex-wrap gap-3 items-end">
-        <div>
+      <div className="panel p-3 flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:items-end">
+        <div className="min-w-0">
           <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-1">Type</label>
-          <div className="flex flex-wrap gap-1">
+          <div className="tabs-scrollable sm:flex-wrap">
             {SEMANTIC_FILTER_OPTIONS.map((o) => (
               <button key={o.id} onClick={() => { setSemanticFilter(o.id); setPage(0) }}
-                className={cn('px-2 py-1 rounded-md text-xs border transition-colors',
+                className={cn('px-2 py-1 rounded-md text-xs border transition-colors whitespace-nowrap shrink-0',
                   semanticFilter === o.id ? 'bg-accent/15 border-accent/40 text-accent'
                                           : 'bg-ink-800 border-ink-700 text-ink-300 hover:border-ink-600')}>
                 {o.label}
@@ -692,15 +555,17 @@ function VisitesTab() {
             ))}
           </div>
         </div>
-        <div>
-          <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-1">Du</label>
-          <input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPage(0) }}
-            className="bg-ink-800 border border-ink-700 rounded-md px-3 py-1.5 text-sm font-mono" />
-        </div>
-        <div>
-          <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-1">Au</label>
-          <input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPage(0) }}
-            className="bg-ink-800 border border-ink-700 rounded-md px-3 py-1.5 text-sm font-mono" />
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-3">
+          <div>
+            <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-1">Du</label>
+            <input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPage(0) }}
+              className="bg-ink-800 border border-ink-700 rounded-md px-3 py-1.5 text-sm font-mono w-full sm:w-auto" />
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-1">Au</label>
+            <input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPage(0) }}
+              className="bg-ink-800 border border-ink-700 rounded-md px-3 py-1.5 text-sm font-mono w-full sm:w-auto" />
+          </div>
         </div>
       </div>
 
@@ -719,12 +584,12 @@ function VisitesTab() {
 
       <div className="flex gap-2 justify-center items-center">
         <button disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}
-          className="px-3 py-1.5 text-xs border border-ink-700 rounded-md disabled:opacity-40 hover:border-ink-600 transition-colors">
+          className="px-4 py-2.5 text-sm border border-ink-700 rounded-md disabled:opacity-40 hover:border-ink-600 transition-colors min-h-[44px]">
           ← Précédent
         </button>
-        <span className="text-xs text-ink-400 font-mono">Page {page + 1}</span>
+        <span className="text-xs text-ink-400 font-mono px-2">Page {page + 1}</span>
         <button disabled={(visits?.length ?? 0) < PAGE_SIZE} onClick={() => setPage((p) => p + 1)}
-          className="px-3 py-1.5 text-xs border border-ink-700 rounded-md disabled:opacity-40 hover:border-ink-600 transition-colors">
+          className="px-4 py-2.5 text-sm border border-ink-700 rounded-md disabled:opacity-40 hover:border-ink-600 transition-colors min-h-[44px]">
           Suivant →
         </button>
       </div>

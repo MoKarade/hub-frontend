@@ -11,8 +11,7 @@ import {
 } from 'lucide-react'
 import { ComingSoon } from '@/components/coming-soon'
 import useSWR from 'swr'
-import { useMemo, useState, Suspense, type ComponentType } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useMemo, useState, type ComponentType } from 'react'
 import { api, type Account } from '@/lib/api'
 import { formatCurrency, formatDate, signedAmount, cn } from '@/lib/utils'
 
@@ -26,32 +25,10 @@ const TABS: { id: TabId; label: string; icon: ComponentType<{ size?: number; cla
 ]
 
 export default function FinancesPage() {
-  return (
-    <Suspense fallback={null}>
-      <FinancesPageInner />
-    </Suspense>
-  )
-}
-
-function FinancesPageInner() {
-  const searchParams = useSearchParams()
-  const dateParam = searchParams.get('date')
-  // Si on arrive avec ?date=YYYY-MM-DD, ouvre une fenetre de +/- 7 jours
-  // autour pour montrer le contexte de la transaction.
   const [tab, setTab] = useState<TabId>('banking')
   const [accountId, setAccountId] = useState<string | undefined>()
-  const [startDate, setStartDate] = useState<string>(() => {
-    if (!dateParam) return ''
-    const d = new Date(dateParam)
-    d.setDate(d.getDate() - 7)
-    return d.toISOString().slice(0, 10)
-  })
-  const [endDate, setEndDate] = useState<string>(() => {
-    if (!dateParam) return ''
-    const d = new Date(dateParam)
-    d.setDate(d.getDate() + 7)
-    return d.toISOString().slice(0, 10)
-  })
+  const [startDate, setStartDate] = useState<string>('')
+  const [endDate, setEndDate] = useState<string>('')
   const [search, setSearch] = useState('')
 
   const { data: accounts, mutate: refetchAccounts } = useSWR(
@@ -114,7 +91,7 @@ function FinancesPageInner() {
         </div>
 
         {/* Filters */}
-        <div className="panel p-4 mb-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="panel p-4 mb-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div>
             <label className="block text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-1">
               Compte
@@ -277,15 +254,15 @@ function BankingTab({
         { label: 'Net', value: formatCurrency(totalCredit - totalDebit, 'CAD') },
       ]} />
 
-      <div className="panel overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="panel overflow-x-auto">
+        <table className="w-full text-sm min-w-[520px]">
           <thead className="bg-ink-800/50 text-[11px] uppercase tracking-wider text-ink-400">
             <tr>
-              <th className="text-left px-4 py-2 font-medium">Date</th>
-              <th className="text-left px-4 py-2 font-medium">Compte</th>
-              <th className="text-left px-4 py-2 font-medium">Description</th>
-              <th className="text-right px-4 py-2 font-medium">Montant</th>
-              <th className="text-right px-4 py-2 font-medium">Solde</th>
+              <th className="text-left px-3 sm:px-4 py-2 font-medium">Date</th>
+              <th className="text-left px-3 sm:px-4 py-2 font-medium hidden md:table-cell">Compte</th>
+              <th className="text-left px-3 sm:px-4 py-2 font-medium">Description</th>
+              <th className="text-right px-3 sm:px-4 py-2 font-medium">Montant</th>
+              <th className="text-right px-3 sm:px-4 py-2 font-medium hidden lg:table-cell">Solde</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-ink-800/60">
@@ -315,16 +292,16 @@ function BankingTab({
               const account = accounts?.find((a) => a.id === t.account_id)
               return (
                 <tr key={t.id} className="hover:bg-ink-800/30 transition-colors">
-                  <td className="px-4 py-2 font-mono text-xs text-ink-300">
+                  <td className="px-3 sm:px-4 py-2 font-mono text-xs text-ink-300 whitespace-nowrap">
                     {formatDate(t.transaction_date)}
                   </td>
-                  <td className="px-4 py-2 text-xs text-ink-400">
+                  <td className="px-3 sm:px-4 py-2 text-xs text-ink-400 hidden md:table-cell">
                     {account?.account_number_masked ?? '—'}
                   </td>
-                  <td className="px-4 py-2">{t.description}</td>
+                  <td className="px-3 sm:px-4 py-2 max-w-[200px] sm:max-w-none truncate">{t.description}</td>
                   <td
                     className={cn(
-                      'px-4 py-2 text-right font-mono tabular-nums',
+                      'px-3 sm:px-4 py-2 text-right font-mono tabular-nums whitespace-nowrap',
                       amount === null ? 'text-ink-400' : amount >= 0 ? 'data-positive' : 'data-negative'
                     )}
                   >
@@ -335,7 +312,7 @@ function BankingTab({
                       </>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-right font-mono tabular-nums text-ink-400">
+                  <td className="px-3 sm:px-4 py-2 text-right font-mono tabular-nums text-ink-400 hidden lg:table-cell whitespace-nowrap">
                     {formatCurrency(t.balance_after, account?.currency ?? 'CAD')}
                   </td>
                 </tr>
@@ -403,15 +380,15 @@ function CreditCardTab({
         { label: 'Net carte', value: formatCurrency(totalAchats - totalPaiements, 'CAD') },
       ]} />
 
-      <div className="panel overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="panel overflow-x-auto">
+        <table className="w-full text-sm min-w-[520px]">
           <thead className="bg-ink-800/50 text-[11px] uppercase tracking-wider text-ink-400">
             <tr>
-              <th className="text-left px-4 py-2 font-medium">Date</th>
-              <th className="text-left px-4 py-2 font-medium">Carte</th>
-              <th className="text-left px-4 py-2 font-medium">Description</th>
-              <th className="text-right px-4 py-2 font-medium">Cashback</th>
-              <th className="text-right px-4 py-2 font-medium">Montant</th>
+              <th className="text-left px-3 sm:px-4 py-2 font-medium">Date</th>
+              <th className="text-left px-3 sm:px-4 py-2 font-medium hidden md:table-cell">Carte</th>
+              <th className="text-left px-3 sm:px-4 py-2 font-medium">Description</th>
+              <th className="text-right px-3 sm:px-4 py-2 font-medium hidden lg:table-cell">Cashback</th>
+              <th className="text-right px-3 sm:px-4 py-2 font-medium">Montant</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-ink-800/60">
@@ -439,17 +416,17 @@ function CreditCardTab({
               const account = accounts?.find((a) => a.id === t.account_id)
               return (
                 <tr key={t.id} className="hover:bg-ink-800/30 transition-colors">
-                  <td className="px-4 py-2 font-mono text-xs text-ink-300">{formatDate(t.transaction_date)}</td>
-                  <td className="px-4 py-2 font-mono text-[10px] text-ink-400">
+                  <td className="px-3 sm:px-4 py-2 font-mono text-xs text-ink-300 whitespace-nowrap">{formatDate(t.transaction_date)}</td>
+                  <td className="px-3 sm:px-4 py-2 font-mono text-[10px] text-ink-400 hidden md:table-cell">
                     ****{t.card_number_masked.slice(-4)}
                   </td>
-                  <td className="px-4 py-2">{t.description}</td>
-                  <td className="px-4 py-2 text-right font-mono text-xs text-ink-400">
+                  <td className="px-3 sm:px-4 py-2 max-w-[200px] sm:max-w-none truncate">{t.description}</td>
+                  <td className="px-3 sm:px-4 py-2 text-right font-mono text-xs text-ink-400 hidden lg:table-cell">
                     {t.cashback_rate ? `${(parseFloat(t.cashback_rate) * 100).toFixed(2)} %` : '—'}
                   </td>
                   <td
                     className={cn(
-                      'px-4 py-2 text-right font-mono tabular-nums',
+                      'px-3 sm:px-4 py-2 text-right font-mono tabular-nums whitespace-nowrap',
                       amount > 0 ? 'data-negative' : 'data-positive'
                     )}
                   >
@@ -540,19 +517,19 @@ function InvestmentsTab({
       ]} />
 
       {/* Positions snapshot */}
-      <div className="panel overflow-hidden mb-4">
+      <div className="panel overflow-x-auto mb-4">
         <div className="px-4 py-2 bg-ink-800/40 text-xs font-semibold text-ink-300">
           Dernier snapshot des positions
         </div>
-        <table className="w-full text-sm">
+        <table className="w-full text-sm min-w-[560px]">
           <thead className="text-[11px] uppercase tracking-wider text-ink-400">
             <tr>
-              <th className="text-left px-4 py-2 font-medium">Symbole</th>
-              <th className="text-left px-4 py-2 font-medium">Titre</th>
-              <th className="text-right px-4 py-2 font-medium">Quantité</th>
-              <th className="text-right px-4 py-2 font-medium">Prix marché</th>
-              <th className="text-right px-4 py-2 font-medium">Valeur</th>
-              <th className="text-right px-4 py-2 font-medium">% portef.</th>
+              <th className="text-left px-3 sm:px-4 py-2 font-medium">Symbole</th>
+              <th className="text-left px-3 sm:px-4 py-2 font-medium hidden md:table-cell">Titre</th>
+              <th className="text-right px-3 sm:px-4 py-2 font-medium">Quantité</th>
+              <th className="text-right px-3 sm:px-4 py-2 font-medium hidden lg:table-cell">Prix marché</th>
+              <th className="text-right px-3 sm:px-4 py-2 font-medium">Valeur</th>
+              <th className="text-right px-3 sm:px-4 py-2 font-medium hidden md:table-cell">% portef.</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-ink-800/60">
@@ -565,16 +542,16 @@ function InvestmentsTab({
             ) : (
               latestPositions.map((p) => (
                 <tr key={p.id} className="hover:bg-ink-800/30 transition-colors">
-                  <td className="px-4 py-2 font-mono font-semibold">{p.symbol ?? '—'}</td>
-                  <td className="px-4 py-2 text-ink-300">{p.description}</td>
-                  <td className="px-4 py-2 text-right font-mono">{p.quantity}</td>
-                  <td className="px-4 py-2 text-right font-mono tabular-nums">
+                  <td className="px-3 sm:px-4 py-2 font-mono font-semibold whitespace-nowrap">{p.symbol ?? '—'}</td>
+                  <td className="px-3 sm:px-4 py-2 text-ink-300 hidden md:table-cell max-w-[200px] truncate">{p.description}</td>
+                  <td className="px-3 sm:px-4 py-2 text-right font-mono">{p.quantity}</td>
+                  <td className="px-3 sm:px-4 py-2 text-right font-mono tabular-nums hidden lg:table-cell whitespace-nowrap">
                     {formatCurrency(p.market_price, p.currency, undefined, { maximumFractionDigits: 4 })}
                   </td>
-                  <td className="px-4 py-2 text-right font-mono tabular-nums font-semibold">
+                  <td className="px-3 sm:px-4 py-2 text-right font-mono tabular-nums font-semibold whitespace-nowrap">
                     {formatCurrency(p.market_value, p.currency)}
                   </td>
-                  <td className="px-4 py-2 text-right font-mono text-xs text-ink-400">
+                  <td className="px-3 sm:px-4 py-2 text-right font-mono text-xs text-ink-400 hidden md:table-cell">
                     {p.portfolio_pct ? `${p.portfolio_pct} %` : '—'}
                   </td>
                 </tr>
@@ -585,19 +562,19 @@ function InvestmentsTab({
       </div>
 
       {/* Transactions */}
-      <div className="panel overflow-hidden">
+      <div className="panel overflow-x-auto">
         <div className="px-4 py-2 bg-ink-800/40 text-xs font-semibold text-ink-300">
           Transactions
         </div>
-        <table className="w-full text-sm">
+        <table className="w-full text-sm min-w-[640px]">
           <thead className="text-[11px] uppercase tracking-wider text-ink-400">
             <tr>
-              <th className="text-left px-4 py-2 font-medium">Date</th>
-              <th className="text-left px-4 py-2 font-medium">Sous-compte</th>
-              <th className="text-left px-4 py-2 font-medium">Opération</th>
-              <th className="text-left px-4 py-2 font-medium">Description</th>
-              <th className="text-right px-4 py-2 font-medium">Quantité</th>
-              <th className="text-right px-4 py-2 font-medium">Montant</th>
+              <th className="text-left px-3 sm:px-4 py-2 font-medium">Date</th>
+              <th className="text-left px-3 sm:px-4 py-2 font-medium hidden lg:table-cell">Sous-compte</th>
+              <th className="text-left px-3 sm:px-4 py-2 font-medium hidden md:table-cell">Opération</th>
+              <th className="text-left px-3 sm:px-4 py-2 font-medium">Description</th>
+              <th className="text-right px-3 sm:px-4 py-2 font-medium hidden md:table-cell">Quantité</th>
+              <th className="text-right px-3 sm:px-4 py-2 font-medium">Montant</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-ink-800/60">
@@ -615,15 +592,15 @@ function InvestmentsTab({
               const account = accounts?.find((a) => a.id === t.account_id)
               return (
                 <tr key={t.id} className="hover:bg-ink-800/30 transition-colors">
-                  <td className="px-4 py-2 font-mono text-xs text-ink-300">{formatDate(t.transaction_date)}</td>
-                  <td className="px-4 py-2 font-mono text-[10px] text-ink-400">{t.sub_account_code ?? '—'}</td>
-                  <td className="px-4 py-2 text-xs">{t.operation}</td>
-                  <td className="px-4 py-2">
+                  <td className="px-3 sm:px-4 py-2 font-mono text-xs text-ink-300 whitespace-nowrap">{formatDate(t.transaction_date)}</td>
+                  <td className="px-3 sm:px-4 py-2 font-mono text-[10px] text-ink-400 hidden lg:table-cell">{t.sub_account_code ?? '—'}</td>
+                  <td className="px-3 sm:px-4 py-2 text-xs hidden md:table-cell">{t.operation}</td>
+                  <td className="px-3 sm:px-4 py-2 max-w-[220px] sm:max-w-none truncate">
                     {t.symbol && <span className="font-mono font-semibold mr-2">{t.symbol}</span>}
                     <span className="text-ink-300">{t.description}</span>
                   </td>
-                  <td className="px-4 py-2 text-right font-mono">{t.quantity ?? '—'}</td>
-                  <td className={cn('px-4 py-2 text-right font-mono tabular-nums', amt >= 0 ? 'data-positive' : 'data-negative')}>
+                  <td className="px-3 sm:px-4 py-2 text-right font-mono hidden md:table-cell">{t.quantity ?? '—'}</td>
+                  <td className={cn('px-3 sm:px-4 py-2 text-right font-mono tabular-nums whitespace-nowrap', amt >= 0 ? 'data-positive' : 'data-negative')}>
                     {amt !== 0 ? (amt >= 0 ? '+' : '') + formatCurrency(amt, t.currency ?? account?.currency ?? 'CAD') : '—'}
                   </td>
                 </tr>

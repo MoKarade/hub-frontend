@@ -41,7 +41,6 @@ import {
 import { api, type HealthSummaryResponse } from '@/lib/api'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
-import { DayAnalyzer } from '@/components/day-analyzer'
 
 // ── Formatters ─────────────────────────────────────────────────────────────────
 
@@ -239,7 +238,7 @@ export default function HealthPage() {
               Garmin Forerunner 955 · Google Fit · 90 jours
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <SyncButton label="Sync Fit" loading={syncingFit} onClick={handleSyncFit} color="text-info" />
             <SyncButton label="Sync Garmin" loading={syncingGarmin} onClick={handleSyncGarmin} color="text-accent" />
           </div>
@@ -247,7 +246,7 @@ export default function HealthPage() {
 
         {/* ── Today Hero Strip ────────────────────────────────────────────── */}
         {stats.length > 0 && (
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-4">
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-6">
             {hero.map(({ metric, label, emoji }) => {
               const s = byMetric[metric]
               const meta = metaOf(metric)
@@ -258,11 +257,6 @@ export default function HealthPage() {
             })}
           </div>
         )}
-
-        {/* ── Analyse du jour (avec date picker + score + encouragements) ── */}
-        <div className="mb-6">
-          <DayAnalyzer />
-        </div>
 
         {/* ── Sections par catégorie ──────────────────────────────────────── */}
         <div className="space-y-8">
@@ -294,13 +288,13 @@ function HeroTile({
 }) {
   return (
     <div
-      className="rounded-xl border border-ink-700/60 bg-ink-900/80 p-3 flex flex-col items-center text-center hover:border-ink-600 transition-colors"
+      className="rounded-xl border border-ink-700/60 bg-ink-900/80 p-3 flex flex-col items-center text-center hover:border-ink-600 transition-colors min-w-0 overflow-hidden"
       style={{ boxShadow: `0 0 0 1px ${hex}15` }}
     >
       <span className="text-xl mb-1">{emoji}</span>
-      <div className="text-[10px] text-ink-500 uppercase tracking-wider font-mono mb-1">{label}</div>
-      <div className="font-bold text-lg leading-none" style={{ color: hex }}>{value}</div>
-      {unit && <div className="text-[9px] text-ink-600 font-mono mt-0.5">{unit}</div>}
+      <div className="text-[10px] text-ink-500 uppercase tracking-wider font-mono mb-1 truncate w-full">{label}</div>
+      <div className="font-bold text-base sm:text-lg leading-none truncate w-full" style={{ color: hex }}>{value}</div>
+      {unit && <div className="text-[9px] text-ink-600 font-mono mt-0.5 truncate w-full">{unit}</div>}
       {date && (
         <div className="text-[8px] text-ink-700 font-mono mt-1 truncate w-full">
           {date.slice(5)}

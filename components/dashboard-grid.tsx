@@ -53,14 +53,27 @@ export function DashboardGrid() {
   // URL SSE détectée au runtime (window.location), comme le reste du client API.
   // useMemo pour ne pas recalculer à chaque render (et éviter de relancer l'EventSource).
   const sseUrl = useMemo(() => `${getBaseUrl()}/v1/events/stream`, [])
-  const { lastEvent } = useEventSource(sseUrl)
+  const { lastEvent, status: sseStatus } = useEventSource(sseUrl)
   const [pulseTransactions, setPulseTransactions] = useState(false)
+  const [pulseLocations, setPulseLocations] = useState(false)
+  const [pulseInsights, setPulseInsights] = useState(false)
 
-  // Ring-pulse 2s sur le widget Recent transactions à chaque new_transaction
+  // Ring-pulse 2s sur les widgets concernés à chaque event SSE pertinent
   useEffect(() => {
-    if (lastEvent?.type === 'new_transaction') {
+    if (!lastEvent) return
+    if (lastEvent.type === 'new_transaction') {
       setPulseTransactions(true)
       const t = setTimeout(() => setPulseTransactions(false), PULSE_DURATION_MS)
+      return () => clearTimeout(t)
+    }
+    if (lastEvent.type === 'new_location' || lastEvent.type === 'timeline_ingested') {
+      setPulseLocations(true)
+      const t = setTimeout(() => setPulseLocations(false), PULSE_DURATION_MS)
+      return () => clearTimeout(t)
+    }
+    if (lastEvent.type === 'insight_generated' || lastEvent.type === 'stats_update') {
+      setPulseInsights(true)
+      const t = setTimeout(() => setPulseInsights(false), PULSE_DURATION_MS)
       return () => clearTimeout(t)
     }
   }, [lastEvent])
@@ -69,11 +82,23 @@ export function DashboardGrid() {
     <div className="space-y-4">
 
       {/* ── KPI strip (Google Analytics style — toujours en haut, non-sortable) ── */}
-      <section aria-labelledby="kpi-heading">
+      <section aria-labelledby="kpi-heading" className="relative">
         <h2 id="kpi-heading" className="sr-only">
           Indicateurs clés
         </h2>
         <LiveStatCards />
+        {/* SSE status dot — discret, en haut à droite */}
+        <span
+          aria-label={`Flux temps réel : ${sseStatus}`}
+          title={`SSE ${sseStatus}`}
+          className={`absolute -top-1 right-0 w-1.5 h-1.5 rounded-full transition-colors ${
+            sseStatus === 'connected'
+              ? 'bg-accent shadow-[0_0_4px_rgba(92,219,149,0.8)]'
+              : sseStatus === 'connecting'
+              ? 'bg-warn animate-pulse'
+              : 'bg-ink-700'
+          }`}
+        />
       </section>
 
       {/* ── Grille de widgets fixe (drag-drop retiré sur demande Marc) ── */}
@@ -105,7 +130,7 @@ export function DashboardGrid() {
         </div>
 
         <div className={SPAN_SM}>
-          <Widget id="insights" title="Insights" icon={Sparkles} badge="Phase 4+">
+          <Widget id="insights" title="Insights" icon={Sparkles} badge="Phase 4+" pulse={pulseInsights}>
             <InsightList />
           </Widget>
         </div>
@@ -137,6 +162,7 @@ export function DashboardGrid() {
             title="Localisation"
             subtitle="Google Maps Timeline"
             icon={MapPin}
+            pulse={pulseLocations}
             headerActions={
               <Link
                 href="/locations"

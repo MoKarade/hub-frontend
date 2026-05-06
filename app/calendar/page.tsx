@@ -21,8 +21,7 @@ import {
   Search,
   Calendar as CalendarMini,
 } from 'lucide-react'
-import { useEffect, useMemo, useState, Suspense } from 'react'
-import { useSearchParams, useRouter, usePathname } from 'next/navigation'
+import { useMemo, useState } from 'react'
 import useSWR, { mutate as swrMutate } from 'swr'
 import {
   startOfWeek,
@@ -76,22 +75,8 @@ const HOUR_HEIGHT = 48 // px per hour
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 
 export default function CalendarPage() {
-  return (
-    <Suspense fallback={null}>
-      <CalendarPageInner />
-    </Suspense>
-  )
-}
-
-function CalendarPageInner() {
-  const searchParams = useSearchParams()
-  const router = useRouter()
-  const pathname = usePathname()
-  const idParam = searchParams.get('id')
-  const dateParam = searchParams.get('date')
-
   const [view, setView] = useState<ViewMode>('week')
-  const [anchor, setAnchor] = useState<Date>(dateParam ? new Date(dateParam) : new Date())
+  const [anchor, setAnchor] = useState<Date>(new Date())
   const [selectedEvent, setSelectedEvent] = useState<CalEventItem | null>(null)
   const [search, setSearch] = useState('')
   const [syncing, setSyncing] = useState(false)
@@ -108,17 +93,6 @@ function CalendarPageInner() {
         limit: 1000,
       })
   )
-
-  // Si on arrive avec ?id=<uuid>, ouvre l'event en modal des qu'il est charge.
-  useEffect(() => {
-    if (idParam && events && events.length > 0) {
-      const ev = events.find((e) => e.id === idParam)
-      if (ev) {
-        setSelectedEvent(ev)
-        router.replace(pathname, { scroll: false })
-      }
-    }
-  }, [idParam, events, router, pathname])
   const { data: stats } = useSWR<CalStatsResponse>('cal-stats', () => api.calendar.stats())
 
   async function handleSync() {
@@ -166,58 +140,64 @@ function CalendarPageInner() {
         </header>
 
         {/* Toolbar */}
-        <div className="ga-card p-2 mb-3 flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setAnchor(new Date())}
-            className="px-2.5 py-1 rounded-md text-xs bg-ink-800 border border-ink-700 hover:border-ink-600"
-          >
-            Aujourd&apos;hui
-          </button>
-          <div className="flex">
+        <div className="ga-card p-2 mb-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:flex-wrap">
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => navigate(-1)}
-              className="w-7 h-7 flex items-center justify-center rounded-l bg-ink-800 border border-ink-700 hover:border-ink-600"
+              onClick={() => setAnchor(new Date())}
+              className="px-3 py-2 rounded-md text-xs bg-ink-800 border border-ink-700 hover:border-ink-600 min-h-[40px]"
             >
-              <ChevronLeft size={13} />
+              Aujourd&apos;hui
             </button>
-            <button
-              type="button"
-              onClick={() => navigate(1)}
-              className="w-7 h-7 flex items-center justify-center rounded-r bg-ink-800 border border-ink-700 border-l-0 hover:border-ink-600"
-            >
-              <ChevronRight size={13} />
-            </button>
-          </div>
-          <div className="text-sm font-semibold text-ink-100 ml-2">
-            {formatRangeLabel(view, anchor, from, to)}
+            <div className="flex">
+              <button
+                type="button"
+                onClick={() => navigate(-1)}
+                aria-label="Précédent"
+                className="w-10 h-10 sm:w-7 sm:h-7 flex items-center justify-center rounded-l bg-ink-800 border border-ink-700 hover:border-ink-600"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate(1)}
+                aria-label="Suivant"
+                className="w-10 h-10 sm:w-7 sm:h-7 flex items-center justify-center rounded-r bg-ink-800 border border-ink-700 border-l-0 hover:border-ink-600"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+            <div className="text-sm font-semibold text-ink-100 ml-1 sm:ml-2 flex-1 min-w-0 truncate">
+              {formatRangeLabel(view, anchor, from, to)}
+            </div>
           </div>
 
-          <div className="flex-1" />
+          <div className="hidden sm:block sm:flex-1" />
 
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-ink-500" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Rechercher…"
-              className="bg-ink-800 border border-ink-700 rounded-md pl-7 pr-2 py-1 text-xs w-48 focus:outline-none focus:border-accent/60"
+              className="bg-ink-800 border border-ink-700 rounded-md pl-7 pr-2 py-1 text-xs w-full sm:w-48 focus:outline-none focus:border-accent/60"
             />
           </div>
 
-          <div className="flex">
+          <div className="tabs-scrollable sm:flex sm:gap-0">
             {VIEW_MODES.map((v) => (
               <button
                 key={v.id}
                 type="button"
                 onClick={() => setView(v.id)}
                 className={cn(
-                  'px-2.5 py-1 text-xs border-y border-ink-700 first:border-l first:rounded-l last:border-r last:rounded-r',
+                  'px-3 py-2 sm:px-2.5 sm:py-1 text-xs border whitespace-nowrap shrink-0',
+                  'sm:border-y sm:border-l-0 sm:first:border-l sm:first:rounded-l sm:last:border-r sm:last:rounded-r',
+                  'rounded-md sm:rounded-none',
                   view === v.id
                     ? 'bg-accent/15 border-accent/30 text-accent'
-                    : 'bg-ink-800 text-ink-300 hover:text-ink-100 hover:bg-ink-700'
+                    : 'bg-ink-800 border-ink-700 text-ink-300 hover:text-ink-100 hover:bg-ink-700'
                 )}
               >
                 {v.label}
