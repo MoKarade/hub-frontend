@@ -43,6 +43,7 @@ import {
   Tv,
   Globe,
   Gamepad2,
+  User,
 } from 'lucide-react'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import { cn } from '@/lib/utils'
@@ -65,6 +66,7 @@ const SECTIONS: NavSection[] = [
     title: 'Vue d\'ensemble',
     items: [
       { label: 'Hub',        href: '/',         icon: LayoutDashboard },
+      { label: 'Mon profil', href: '/me',       icon: User },
       { label: 'Insights',   href: '/insights', icon: Sparkles },
     ],
   },
