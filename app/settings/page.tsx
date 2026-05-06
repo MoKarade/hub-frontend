@@ -30,12 +30,14 @@ import {
   AlertTriangle,
   Settings as SettingsIcon,
   ShieldCheck,
+  Download,
+  Loader2,
   type LucideIcon,
 } from 'lucide-react'
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
-import { api, ApiError, type OAuthStatusItem } from '@/lib/api'
+import { api, ApiError, getBaseUrl, type OAuthStatusItem } from '@/lib/api'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 
@@ -103,10 +105,88 @@ function SettingsContent() {
     <div className="space-y-6">
       <GoogleConnectionsSection />
       <NotificationsSection />
+      <ExportSection />
       <SecuritySection />
       <PrivacyOsintSection />
       <PreferencesSection />
     </div>
+  )
+}
+
+function ExportSection() {
+  const base = getBaseUrl()
+  const [preview, setPreview] = useState<{ total_rows: number; tables: Record<string, number> } | null>(null)
+  const [downloading, setDownloading] = useState(false)
+  const [includeBodies, setIncludeBodies] = useState(false)
+
+  useEffect(() => {
+    fetch(`${base}/v1/export/preview`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setPreview)
+      .catch(() => setPreview(null))
+  }, [base])
+
+  const download = async () => {
+    setDownloading(true)
+    try {
+      const url = `${base}/v1/export/all${includeBodies ? '?include_email_bodies=true' : ''}`
+      const r = await fetch(url)
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      const blob = await r.blob()
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `hub-export-${new Date().toISOString().slice(0, 10)}.zip`
+      a.click()
+      URL.revokeObjectURL(a.href)
+    } catch (e) {
+      toast.error('Export echoue', { description: e instanceof Error ? e.message : String(e) })
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  return (
+    <section>
+      <header className="mb-3 flex items-center gap-2">
+        <Download size={18} className="text-accent" />
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Exporter mes donnees</h2>
+          <p className="text-sm text-ink-400">
+            ZIP complet avec 1 CSV par table — droit d&apos;acces Loi 25 self-applique
+          </p>
+        </div>
+      </header>
+      <div className="panel p-4 space-y-3">
+        {preview ? (
+          <div className="text-xs text-ink-300 font-mono">
+            {preview.total_rows.toLocaleString('fr-CA')} lignes au total reparties sur{' '}
+            {Object.values(preview.tables).filter((v) => v > 0).length} tables
+          </div>
+        ) : (
+          <div className="text-xs text-ink-500">Calcul de l&apos;apercu...</div>
+        )}
+        <label className="flex items-center gap-2 text-xs text-ink-300">
+          <input
+            type="checkbox"
+            checked={includeBodies}
+            onChange={(e) => setIncludeBodies(e.target.checked)}
+            className="accent-accent"
+          />
+          Inclure le corps des emails (gros)
+        </label>
+        <button
+          onClick={download}
+          disabled={downloading || !preview}
+          className="px-4 py-2 rounded-md text-sm font-semibold bg-accent/15 border border-accent/40 text-accent hover:bg-accent/25 disabled:opacity-40 inline-flex items-center gap-2"
+        >
+          {downloading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+          {downloading ? 'Generation...' : 'Telecharger ZIP'}
+        </button>
+        <p className="text-[10px] text-ink-500">
+          Tokens OAuth chiffres exclus (par design). Generation ~10 sec pour 200k lignes.
+        </p>
+      </div>
+    </section>
   )
 }
 
