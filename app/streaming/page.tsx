@@ -54,6 +54,10 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 export default function StreamingPage() {
   const base = getBaseUrl()
+  const [syncing, setSyncing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [typeFilter, setTypeFilter] = useState<'all' | 'movie' | 'episode'>('all')
+
   const { data: status, mutate: mutateStatus } = useSWR<StreamingStatus>(
     `${base}/v1/streaming/status`,
     fetcher,
@@ -62,13 +66,14 @@ export default function StreamingPage() {
     `${base}/v1/streaming/stats`,
     fetcher,
   )
+  const historyUrl =
+    typeFilter === 'all'
+      ? `${base}/v1/streaming/history?limit=50`
+      : `${base}/v1/streaming/history?limit=50&item_type=${typeFilter}`
   const { data: history, mutate: mutateHistory } = useSWR<ActivityItem[]>(
-    `${base}/v1/streaming/history?limit=50`,
+    historyUrl,
     fetcher,
   )
-
-  const [syncing, setSyncing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   const sync = useCallback(async () => {
     setSyncing(true)
@@ -202,6 +207,26 @@ export default function StreamingPage() {
               ))}
             </ul>
           </Widget>
+        )}
+
+        {/* Type filter */}
+        {stats && stats.total_activities > 0 && (
+          <div className="tabs-scrollable sm:flex-wrap">
+            {(['all', 'movie', 'episode'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTypeFilter(t)}
+                className={cn(
+                  'px-3 py-1.5 rounded-md text-xs whitespace-nowrap shrink-0',
+                  typeFilter === t
+                    ? 'bg-accent/15 border border-accent/40 text-accent'
+                    : 'bg-ink-800 border border-ink-700 text-ink-300 hover:border-ink-600',
+                )}
+              >
+                {t === 'all' ? 'Tout' : t === 'movie' ? 'Films seulement' : 'Episodes seulement'}
+              </button>
+            ))}
+          </div>
         )}
 
         {/* History */}
