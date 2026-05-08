@@ -60,6 +60,7 @@ function PhotosPageInner() {
 
   const [syncing, setSyncing] = useState(false)
   const [enriching, setEnriching] = useState(false)
+  const [geotagging, setGeotagging] = useState(false)
   const [view, setView] = useState<'grid' | 'map'>('grid')
   const [filterType, setFilterType] = useState<FilterType>('all')
   const [activeYear, setActiveYear] = useState<string | null>(null)
@@ -221,6 +222,28 @@ function PhotosPageInner() {
     }
   }
 
+  async function handleGeotagFromTimeline() {
+    setGeotagging(true)
+    try {
+      const res = await api.photos.geotagFromTimeline({ max_photos: 5000, window_minutes: 30 })
+      if (res.geotagged === 0) {
+        toast.error(`Aucune photo géolocalisée (${res.processed} traitées)`, {
+          description: 'Vérifie que tes données Google Timeline sont importées dans /locations.',
+          duration: 8000,
+        })
+      } else {
+        toast.success(`${res.geotagged}/${res.processed} photos géolocalisées`, {
+          description: `${res.from_points} depuis points GPS · ${res.from_visits} depuis visites · ${res.duration_seconds}s`,
+        })
+      }
+      void swrMutate(['photos', filterType, since, until])
+    } catch (err) {
+      toast.apiError(err, 'Géolocalisation Timeline échouée')
+    } finally {
+      setGeotagging(false)
+    }
+  }
+
   function clearFilters() {
     setFilterType('all')
     setActiveYear(null)
@@ -294,6 +317,16 @@ function PhotosPageInner() {
                 <MapPin size={11} />
               )}
               {enriching ? 'Enrich…' : 'Enrichir GPS'}
+            </button>
+            <button
+              type="button"
+              onClick={handleGeotagFromTimeline}
+              disabled={geotagging}
+              title="Géolocalise les photos sans GPS en les corrélant avec ta Google Timeline (±30 min)"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-ink-800 border border-ink-700 hover:border-accent/40 hover:text-accent text-xs disabled:opacity-50"
+            >
+              {geotagging ? <Loader2 size={11} className="animate-spin" /> : <MapPin size={11} />}
+              {geotagging ? 'Timeline…' : 'GPS via Timeline'}
             </button>
           </div>
         </header>

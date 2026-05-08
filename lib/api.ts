@@ -967,6 +967,24 @@ export const api = {
           do_geocode: opts.do_geocode ?? true,
         }),
       }),
+    geotagFromTimeline: (opts: { max_photos?: number; window_minutes?: number; do_geocode?: boolean } = {}) =>
+      request<{
+        processed: number
+        geotagged: number
+        from_points: number
+        from_visits: number
+        geocoded: number
+        errors: number
+        duration_seconds: number
+      }>('/v1/photos/geotag-from-timeline', {
+        method: 'POST',
+        body: JSON.stringify({
+          user_email: 'marc.richard4@gmail.com',
+          max_photos: opts.max_photos ?? 5000,
+          window_minutes: opts.window_minutes ?? 30,
+          do_geocode: opts.do_geocode ?? false,
+        }),
+      }),
   },
 
   drive: {
