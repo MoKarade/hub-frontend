@@ -14,6 +14,8 @@ import {
   MapPin,
   Grid3X3,
   Map as MapIcon,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
@@ -28,6 +30,7 @@ const PhotosMap = dynamic(
 )
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
+import { EmptyState } from '@/components/empty-state'
 
 type FilterType = 'all' | 'photos' | 'videos'
 type SortField = 'date_desc' | 'date_asc' | 'size_desc'
@@ -61,6 +64,15 @@ function PhotosPageInner() {
   const [syncing, setSyncing] = useState(false)
   const [enriching, setEnriching] = useState(false)
   const [geotagging, setGeotagging] = useState(false)
+  const [geotagSummary, setGeotagSummary] = useState<{
+    processed: number
+    geotagged: number
+    from_points: number
+    from_visits: number
+    geocoded: number
+    errors: number
+    duration_seconds: number
+  } | null>(null)
   const [view, setView] = useState<'grid' | 'map'>('grid')
   const [filterType, setFilterType] = useState<FilterType>('all')
   const [activeYear, setActiveYear] = useState<string | null>(null)
@@ -226,19 +238,17 @@ function PhotosPageInner() {
     setGeotagging(true)
     try {
       const res = await api.photos.geotagFromTimeline({ max_photos: 5000, window_minutes: 30 })
+      setGeotagSummary(res)
       if (res.geotagged === 0) {
-        toast.error(`Aucune photo géolocalisée (${res.processed} traitées)`, {
-          description: 'Vérifie que tes données Google Timeline sont importées dans /locations.',
-          duration: 8000,
-        })
+        toast.warning(`Aucune photo geolocalisee (${res.processed} traitees)`)
       } else {
-        toast.success(`${res.geotagged}/${res.processed} photos géolocalisées`, {
-          description: `${res.from_points} depuis points GPS · ${res.from_visits} depuis visites · ${res.duration_seconds}s`,
+        toast.success(`${res.geotagged} photos geolocalisees`, {
+          description: `${res.duration_seconds}s · panel resume au-dessus`,
         })
       }
       void swrMutate(['photos', filterType, since, until])
     } catch (err) {
-      toast.apiError(err, 'Géolocalisation Timeline échouée')
+      toast.apiError(err, 'Geolocalisation Timeline echouee')
     } finally {
       setGeotagging(false)
     }
@@ -565,17 +575,120 @@ function PhotosPageInner() {
           </div>
         )}
 
+        {/* Panel resume geotag-from-timeline */}
+        {geotagSummary && (
+          <div
+            className={cn(
+              'ga-card p-3 mb-3 relative',
+              geotagSummary.geotagged === 0 ? 'border-amber-500/30' : 'border-accent/30'
+            )}
+          >
+            <button
+              type="button"
+              onClick={() => setGeotagSummary(null)}
+              className="absolute top-2 right-2 text-ink-500 hover:text-ink-200"
+              aria-label="Fermer"
+            >
+              <X size={12} />
+            </button>
+
+            {geotagSummary.geotagged === 0 ? (
+              <div className="flex items-start gap-2">
+                <AlertCircle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+                <div className="flex-1 text-xs">
+                  <p className="text-ink-200 font-semibold mb-1">
+                    Aucune photo geolocalisee ({geotagSummary.processed} traitees)
+                  </p>
+                  <p className="text-ink-400">
+                    Le hub n&apos;a trouve aucun point GPS proche dans ta Google Timeline.
+                    Importe d&apos;abord ton archive Timeline dans{' '}
+                    <a href="/locations" className="text-accent hover:underline">
+                      /locations
+                    </a>
+                    , puis relance.
+                  </p>
+                  <p className="text-[10px] font-mono text-ink-500 mt-1.5">
+                    duree : {geotagSummary.duration_seconds}s · erreurs :{' '}
+                    {geotagSummary.errors}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle2 size={14} className="text-accent" />
+                  <p className="text-sm font-semibold text-ink-100">
+                    Geolocalisation Timeline OK
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <SummaryStat label="Photos traitees" value={geotagSummary.processed} />
+                  <SummaryStat
+                    label="Geolocalisees"
+                    value={geotagSummary.geotagged}
+                    sub={
+                      geotagSummary.processed > 0
+                        ? `${Math.round(
+                            (geotagSummary.geotagged / geotagSummary.processed) * 100
+                          )}%`
+                        : undefined
+                    }
+                    accent
+                  />
+                  <SummaryStat
+                    label="Source"
+                    value={`${geotagSummary.from_points} pts`}
+                    sub={`${geotagSummary.from_visits} visites`}
+                  />
+                  <SummaryStat
+                    label="Geocodees"
+                    value={geotagSummary.geocoded}
+                    sub={
+                      geotagSummary.errors > 0
+                        ? `${geotagSummary.errors} erreurs`
+                        : `${geotagSummary.duration_seconds}s`
+                    }
+                  />
+                </div>
+                <div className="mt-2.5 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setView('map')
+                      setOnlyGeo(true)
+                      setGeotagSummary(null)
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-accent/15 border border-accent/40 text-accent hover:bg-accent/25"
+                  >
+                    <MapIcon size={11} /> Voir sur la carte
+                  </button>
+                  <span className="text-[10px] font-mono text-ink-500">
+                    duree : {geotagSummary.duration_seconds}s
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="flex-1 min-h-0">
           {visible.length === 0 ? (
-            <div className="ga-card p-8 text-center">
-              <ImageIcon size={28} className="text-ink-600 mx-auto mb-2" />
-              <div className="text-sm text-ink-400">Aucune photo</div>
-              <p className="text-xs text-ink-500 mt-1">
-                {photos && photos.length === 0
-                  ? 'Click "Picker Photos" pour importer ta sélection'
-                  : 'Aucun match avec ces filtres'}
-              </p>
-            </div>
+            photos && photos.length === 0 ? (
+              <EmptyState
+                variant="no-data"
+                icon={ImageIcon}
+                title="Aucune photo importée"
+                description='Click "Picker Photos" pour sélectionner et importer tes médias depuis Google Photos.'
+                action={{ label: 'Picker Photos', onClick: handleSync }}
+              />
+            ) : (
+              <EmptyState
+                variant="filtered-empty"
+                title="Aucune photo ne match"
+                description="Tes filtres actuels n'attrapent rien. Reset pour tout afficher."
+                action={{ label: 'Effacer les filtres', onClick: clearFilters }}
+              />
+            )
           ) : view === 'map' ? (
             <PhotosMap photos={visible} thumbUrl={thumbUrl} />
           ) : (
@@ -623,6 +736,33 @@ function Kpi({
         <div className="metric-label">{label}</div>
       </div>
       <div className={cn('metric truncate', color)}>{value.toLocaleString('fr-CA')}</div>
+    </div>
+  )
+}
+
+function SummaryStat({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string
+  value: number | string
+  sub?: string
+  accent?: boolean
+}) {
+  return (
+    <div className="bg-ink-900/40 rounded p-2">
+      <div className="text-[9px] uppercase tracking-wider text-ink-500 mb-0.5">{label}</div>
+      <div
+        className={cn(
+          'text-lg font-semibold tabular-nums truncate',
+          accent ? 'text-accent' : 'text-ink-100'
+        )}
+      >
+        {typeof value === 'number' ? value.toLocaleString('fr-CA') : value}
+      </div>
+      {sub && <div className="text-[10px] font-mono text-ink-500">{sub}</div>}
     </div>
   )
 }

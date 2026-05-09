@@ -27,6 +27,7 @@ import useSWR, { mutate as swrMutate } from 'swr'
 import { api, type TaskItem, type TasksStatsResponse } from '@/lib/api'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
+import { EmptyState } from '@/components/empty-state'
 
 // Couleur deterministe par tasklist
 const COLORS = ['#5cdb95', '#5b8def', '#f0a050', '#a78bfa', '#06b6d4', '#ec4899', '#84cc16', '#f06363']
@@ -216,10 +217,12 @@ function TasksPageInner() {
 
         <div className="flex-1 min-h-0">
           {visibleTasks.length === 0 ? (
-            <div className="ga-card p-8 text-center">
-              <CheckSquare size={28} className="text-ink-600 mx-auto mb-2" />
-              <div className="text-sm text-ink-400">Aucune tâche</div>
-            </div>
+            <EmptyState
+              variant="no-data"
+              icon={CheckSquare}
+              title="Aucune tâche"
+              description="Sync Google Tasks pour importer ta liste, ou crée une tâche directement."
+            />
           ) : (
             <div className="ga-card divide-y divide-ink-700/20 max-h-[60vh] overflow-y-auto">
               {visibleTasks.map((t) => (

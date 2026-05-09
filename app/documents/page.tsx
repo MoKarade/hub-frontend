@@ -84,7 +84,7 @@ const CATEGORIES: CategoryDef[] = [
     match: (m) => m.startsWith('image/'),
   },
   { id: 'video', label: 'Vidéos', icon: FileVideo, color: 'text-data-negative', match: (m) => m.startsWith('video/') },
-  { id: 'audio', label: 'Audio', icon: FileAudio, color: 'text-purple-400', match: (m) => m.startsWith('audio/') },
+  { id: 'audio', label: 'Audio', icon: FileAudio, color: 'text-info', match: (m) => m.startsWith('audio/') },
   {
     id: 'code',
     label: 'Code',

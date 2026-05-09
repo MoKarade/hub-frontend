@@ -12,7 +12,7 @@
  * Setup requis : `cd hub-core && pip install -e .[ml]` + MSVC sur Windows.
  */
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import {
   Users,
@@ -20,134 +20,99 @@ import {
   AlertTriangle,
   ArrowLeft,
   Search,
-  RefreshCw,
+  ScanFace,
+  Sparkles,
+  X,
 } from 'lucide-react'
+import useSWR from 'swr'
 import { Sidebar } from '@/components/sidebar'
 import { HubStatus } from '@/components/hub-status'
-import { getBaseUrl, photoThumbUrl } from '@/lib/api'
+import { api, photoThumbUrl } from '@/lib/api'
+import { toast } from '@/lib/toast'
 
-interface FaceCluster {
+type FaceCluster = {
   id: string
   name: string | null
   photo_count: number
   sample_face_id: string | null
+  sample_media_id: string | null
 }
 
-interface MlStatus {
-  face_recognition_installed: boolean
-  total_photos: number
-  total_faces: number
-  total_clusters: number
-}
-
-interface ClusterPhoto {
+type ClusterPhoto = {
   photo_id: string
   media_id: string
   filename: string | null
   taken_at: string | null
 }
 
+type Working = 'detect' | 'cluster' | null
+
 export default function FacesPage() {
-  const base = getBaseUrl()
-  const [clusters, setClusters] = useState<FaceCluster[]>([])
-  const [status, setStatus] = useState<MlStatus | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [working, setWorking] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [selectedCluster, setSelectedCluster] = useState<string | null>(null)
-  const [clusterPhotos, setClusterPhotos] = useState<ClusterPhoto[]>([])
+  const [working, setWorking] = useState<Working>(null)
+  const [selectedCluster, setSelectedCluster] = useState<FaceCluster | null>(null)
 
-  const refresh = useCallback(async () => {
-    try {
-      const [r1, r2] = await Promise.all([
-        fetch(`${base}/v1/photos/face-clusters`).then((r) => r.json()),
-        fetch(`${base}/v1/photos/ml-status`).then((r) => r.json()),
-      ])
-      setClusters(r1)
-      setStatus(r2)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setLoading(false)
-    }
-  }, [base])
+  const { data: status, mutate: refreshStatus, isLoading: statusLoading } = useSWR(
+    'photos-ml-status',
+    () => api.photosMl.status(),
+  )
+  const { data: clusters, mutate: refreshClusters, isLoading: clustersLoading } = useSWR(
+    'face-clusters',
+    () => api.photosMl.listClusters({ limit: 200 }),
+  )
 
-  useEffect(() => {
-    refresh()
-  }, [refresh])
+  const refreshAll = useCallback(async () => {
+    await Promise.all([refreshStatus(), refreshClusters()])
+  }, [refreshStatus, refreshClusters])
 
   const detectBatch = useCallback(async () => {
     setWorking('detect')
-    setError(null)
     try {
-      const r = await fetch(`${base}/v1/photos/detect-faces`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ limit: 50, detection_model: 'hog' }),
-      })
-      if (!r.ok) {
-        const data = await r.json().catch(() => ({}))
-        throw new Error(data.detail || `HTTP ${r.status}`)
-      }
-      const data = await r.json()
-      await refresh()
-      setError(`Detection OK : ${data.photos_processed} photos, ${data.faces_found} visages trouves`)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      const res = await api.photosMl.detectFaces({ limit: 50, detection_model: 'hog' })
+      await refreshAll()
+      toast.success(
+        `Détection OK · ${res.photos_processed} photos analysées, ${res.faces_found} visages trouvés`,
+        { description: `${res.duration_seconds}s${res.errors > 0 ? ` · ${res.errors} erreurs` : ''}` },
+      )
+    } catch (err) {
+      toast.apiError(err, 'Détection visages échouée')
     } finally {
       setWorking(null)
     }
-  }, [base, refresh])
+  }, [refreshAll])
 
   const clusterAll = useCallback(async () => {
     setWorking('cluster')
-    setError(null)
     try {
-      const r = await fetch(`${base}/v1/photos/cluster-faces`, { method: 'POST' })
-      if (!r.ok) {
-        const data = await r.json().catch(() => ({}))
-        throw new Error(data.detail || `HTTP ${r.status}`)
-      }
-      const data = await r.json()
-      await refresh()
-      setError(
-        `Clustering OK : ${data.total_faces} visages → ${data.clusters_found} groupes (${data.noise_faces} isoles)`,
+      const res = await api.photosMl.clusterFaces()
+      await refreshAll()
+      toast.success(
+        `Clustering OK · ${res.total_faces} visages → ${res.clusters_found} groupes`,
+        { description: `${res.noise_faces} isolés · ${res.duration_seconds}s` },
       )
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+    } catch (err) {
+      toast.apiError(err, 'Clustering échoué')
     } finally {
       setWorking(null)
     }
-  }, [base, refresh])
+  }, [refreshAll])
 
   const renameCluster = useCallback(
     async (clusterId: string, name: string | null) => {
       try {
-        await fetch(`${base}/v1/photos/face-clusters/${clusterId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name }),
-        })
-        refresh()
-      } catch {
-        /* ignore */
+        await api.photosMl.renameCluster(clusterId, name)
+        await refreshClusters()
+        toast.success(name ? `Cluster renommé : ${name}` : 'Nom retiré')
+      } catch (err) {
+        toast.apiError(err, 'Renommage échoué')
       }
     },
-    [base, refresh],
+    [refreshClusters],
   )
 
-  const openCluster = useCallback(
-    async (clusterId: string) => {
-      setSelectedCluster(clusterId)
-      try {
-        const r = await fetch(`${base}/v1/photos/by-face/${clusterId}?limit=200`)
-        setClusterPhotos(await r.json())
-      } catch {
-        setClusterPhotos([])
-      }
-    },
-    [base],
-  )
+  const mlMissing = status && !status.face_recognition_installed
+  const totalAnalysed = status?.total_photos ?? 0
+  const totalFaces = status?.total_faces ?? 0
+  const totalClusters = status?.total_clusters ?? 0
 
   return (
     <div className="flex min-h-screen">
@@ -166,112 +131,136 @@ export default function FacesPage() {
               Visages
             </h1>
             <p className="text-xs text-ink-400 mt-0.5">
-              Detection + clustering automatique des visages dans tes photos
+              Détection + clustering automatique des visages dans tes photos
             </p>
           </div>
           <Link
             href="/photos/search"
             className="px-3 py-2 rounded-md text-xs font-semibold bg-ink-800 border border-ink-700 text-ink-300 hover:border-ink-600 inline-flex items-center gap-1.5"
           >
-            <Search size={11} /> Recherche semantique
+            <Search size={11} /> Recherche sémantique
           </Link>
         </header>
 
-        {status && !status.face_recognition_installed && (
+        {mlMissing && (
           <div className="panel p-3 border-amber-500/40 flex items-start gap-2">
             <AlertTriangle size={14} className="text-amber-400 shrink-0 mt-0.5" />
             <div className="text-xs">
-              <p className="text-ink-200 font-semibold mb-1">face_recognition non installe</p>
+              <p className="text-ink-200 font-semibold mb-1">face_recognition non installé</p>
               <p className="text-ink-400">
-                Lance dans hub-core : <code className="font-mono bg-ink-800 px-1">pip install -e .[ml]</code>.
-                Sur Windows, MSVC Build Tools requis pour compiler dlib.
+                Lance dans hub-core :{' '}
+                <code className="font-mono bg-ink-800 px-1">pip install -e .[ml]</code>. Sur
+                Windows, MSVC Build Tools requis pour compiler dlib.
               </p>
             </div>
           </div>
         )}
 
-        {/* Stats + actions */}
-        {status && status.face_recognition_installed && (
-          <div className="panel p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-            <div className="text-ink-300 flex flex-wrap gap-3">
+        {/* Statut clair en haut */}
+        <div className="panel p-4">
+          {statusLoading ? (
+            <div className="flex items-center gap-2 text-xs text-ink-400">
+              <Loader2 size={12} className="animate-spin" /> Chargement du statut ML…
+            </div>
+          ) : status ? (
+            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs text-ink-300">
               <span>
-                <span className="font-mono text-ink-100">{status.total_faces}</span> visages dans{' '}
-                <span className="font-mono text-ink-100">{status.total_photos}</span> photos
+                <span className="font-mono text-ink-100 text-sm">{totalFaces}</span> visages
+                détectés
               </span>
+              <span className="text-ink-600">·</span>
               <span>
-                <span className="font-mono text-ink-100">{status.total_clusters}</span> groupes
+                <span className="font-mono text-ink-100 text-sm">{totalClusters}</span> clusters
+              </span>
+              <span className="text-ink-600">·</span>
+              <span>
+                sur <span className="font-mono text-ink-100">{totalAnalysed}</span> photos
+                indexées
               </span>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button
+          ) : (
+            <div className="text-xs text-ink-400">Statut indisponible</div>
+          )}
+        </div>
+
+        {/* Actions distinctes */}
+        {status?.face_recognition_installed && (
+          <div className="panel p-4">
+            <div className="text-[11px] uppercase tracking-wide text-ink-500 font-semibold mb-3">
+              Actions
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <ActionCard
+                icon={ScanFace}
+                title="Détecter visages"
+                description="Analyse 50 photos non encore traitées et encode les visages trouvés."
+                buttonLabel="Lancer détection (batch 50)"
                 onClick={detectBatch}
-                disabled={working !== null}
-                className="px-3 py-1.5 rounded-md text-[10px] font-semibold bg-info/15 border border-info/40 text-info hover:bg-info/25 disabled:opacity-40 inline-flex items-center gap-1"
-              >
-                {working === 'detect' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
-                Detecter (batch 50)
-              </button>
-              <button
+                disabled={working !== null || totalAnalysed === 0}
+                loading={working === 'detect'}
+                tone="info"
+              />
+              <ActionCard
+                icon={Sparkles}
+                title="Clusteriser"
+                description={
+                  totalFaces === 0
+                    ? 'Aucun visage encore détecté. Lance la détection d’abord.'
+                    : `Regroupe les ${totalFaces} visages par similarité (DBSCAN).`
+                }
+                buttonLabel="Lancer clustering"
                 onClick={clusterAll}
-                disabled={working !== null || status.total_faces === 0}
-                className="px-3 py-1.5 rounded-md text-[10px] font-semibold bg-accent/15 border border-accent/40 text-accent hover:bg-accent/25 disabled:opacity-40 inline-flex items-center gap-1"
-              >
-                {working === 'cluster' ? <Loader2 size={10} className="animate-spin" /> : <Users size={10} />}
-                Clusteriser
-              </button>
+                disabled={working !== null || totalFaces === 0}
+                loading={working === 'cluster'}
+                tone="accent"
+              />
             </div>
           </div>
         )}
 
-        {error && (
-          <div className="panel p-3 text-xs text-ink-300 font-mono">{error}</div>
-        )}
-
-        {/* Clusters list */}
-        {!loading && clusters.length === 0 && status?.face_recognition_installed && (
+        {/* Empty states honnêtes */}
+        {!clustersLoading && status?.face_recognition_installed && totalFaces === 0 && (
           <div className="panel p-6 text-center text-xs text-ink-400">
-            Aucun cluster encore. Lance &laquo;&nbsp;Detecter&nbsp;&raquo; puis &laquo;&nbsp;Clusteriser&nbsp;&raquo;.
+            Aucun visage analysé pour le moment. Lance &laquo;&nbsp;Détecter visages&nbsp;&raquo;
+            pour commencer.
           </div>
         )}
 
-        {clusters.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-            {clusters.map((c) => (
-              <ClusterTile
-                key={c.id}
-                cluster={c}
-                base={base}
-                onRename={renameCluster}
-                onOpen={openCluster}
-                isSelected={selectedCluster === c.id}
-              />
-            ))}
-          </div>
-        )}
+        {!clustersLoading &&
+          status?.face_recognition_installed &&
+          totalFaces > 0 &&
+          (clusters?.length ?? 0) === 0 && (
+            <div className="panel p-6 text-center text-xs text-ink-400">
+              {totalFaces} visages détectés mais aucun cluster formé. Lance
+              &laquo;&nbsp;Clusteriser&nbsp;&raquo; pour les regrouper.
+            </div>
+          )}
 
-        {/* Photos du cluster selectionne */}
-        {selectedCluster && clusterPhotos.length > 0 && (
-          <div className="panel p-3">
-            <p className="text-xs text-ink-400 mb-2">
-              {clusterPhotos.length} photos pour ce cluster
-            </p>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
-              {clusterPhotos.map((p) => (
-                <Link
-                  key={p.photo_id}
-                  href={`/photos?id=${p.photo_id}`}
-                  className="ga-card ga-card-hover overflow-hidden"
-                >
-                  <img
-                    src={photoThumbUrl(p.media_id, 200)}
-                    alt={p.filename ?? ''}
-                    className="w-full h-24 object-cover"
-                    loading="lazy"
-                  />
-                </Link>
+        {/* Grille des clusters */}
+        {clusters && clusters.length > 0 && (
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-ink-500 font-semibold mb-2">
+              Clusters
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+              {clusters.map((c) => (
+                <ClusterTile
+                  key={c.id}
+                  cluster={c}
+                  onRename={renameCluster}
+                  onOpen={() => setSelectedCluster(c)}
+                  isSelected={selectedCluster?.id === c.id}
+                />
               ))}
             </div>
           </div>
+        )}
+
+        {selectedCluster && (
+          <ClusterPanel
+            cluster={selectedCluster}
+            onClose={() => setSelectedCluster(null)}
+          />
         )}
 
         <HubStatus />
@@ -280,36 +269,76 @@ export default function FacesPage() {
   )
 }
 
+function ActionCard({
+  icon: Icon,
+  title,
+  description,
+  buttonLabel,
+  onClick,
+  disabled,
+  loading,
+  tone,
+}: {
+  icon: typeof ScanFace
+  title: string
+  description: string
+  buttonLabel: string
+  onClick: () => void
+  disabled: boolean
+  loading: boolean
+  tone: 'info' | 'accent'
+}) {
+  const toneClass =
+    tone === 'accent'
+      ? 'bg-accent/15 border-accent/40 text-accent hover:bg-accent/25'
+      : 'bg-info/15 border-info/40 text-info hover:bg-info/25'
+  const iconColor = tone === 'accent' ? 'text-accent' : 'text-info'
+  return (
+    <div className="ga-card p-3 flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <Icon size={14} className={iconColor} />
+        <h3 className="text-sm font-semibold text-ink-100">{title}</h3>
+      </div>
+      <p className="text-[11px] text-ink-400 flex-1">{description}</p>
+      <button
+        onClick={onClick}
+        disabled={disabled}
+        className={`px-3 py-1.5 rounded-md text-[11px] font-semibold border inline-flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed ${toneClass}`}
+      >
+        {loading ? <Loader2 size={11} className="animate-spin" /> : <Icon size={11} />}
+        {loading ? 'En cours…' : buttonLabel}
+      </button>
+    </div>
+  )
+}
+
 function ClusterTile({
   cluster,
-  base,
   onRename,
   onOpen,
   isSelected,
 }: {
   cluster: FaceCluster
-  base: string
   onRename: (id: string, name: string | null) => void
-  onOpen: (id: string) => void
+  onOpen: () => void
   isSelected: boolean
 }) {
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(cluster.name ?? '')
 
-  const sampleUrl = cluster.sample_face_id
-    ? `${base}/v1/photos/face-thumb/${cluster.sample_face_id}`
+  const sampleUrl = cluster.sample_media_id
+    ? photoThumbUrl(cluster.sample_media_id, 200)
     : null
 
   return (
-    <div
-      className={`ga-card overflow-hidden ${isSelected ? 'border-accent/60' : ''}`}
-    >
+    <div className={`ga-card overflow-hidden ${isSelected ? 'border-accent/60' : ''}`}>
       <button
-        onClick={() => onOpen(cluster.id)}
+        onClick={onOpen}
         className="block w-full bg-ink-800 hover:opacity-80 transition-opacity"
         aria-label={`Ouvrir cluster ${cluster.name ?? 'sans nom'}`}
       >
         {sampleUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={sampleUrl}
             alt=""
@@ -331,7 +360,10 @@ function ClusterTile({
             onChange={(e) => setName(e.target.value)}
             onBlur={() => {
               setEditing(false)
-              onRename(cluster.id, name.trim() || null)
+              const trimmed = name.trim()
+              if (trimmed !== (cluster.name ?? '')) {
+                onRename(cluster.id, trimmed || null)
+              }
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
@@ -354,6 +386,83 @@ function ClusterTile({
           {cluster.photo_count} visage{cluster.photo_count > 1 ? 's' : ''}
         </span>
       </div>
+    </div>
+  )
+}
+
+function ClusterPanel({
+  cluster,
+  onClose,
+}: {
+  cluster: FaceCluster
+  onClose: () => void
+}) {
+  const { data: photos, isLoading, error } = useSWR(
+    ['cluster-photos', cluster.id],
+    () => api.photosMl.photosByFace(cluster.id, 200),
+  )
+
+  return (
+    <div className="panel p-3">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <div className="text-sm font-semibold text-ink-100">
+            {cluster.name ?? 'Cluster sans nom'}
+          </div>
+          <div className="text-[11px] text-ink-500">
+            {cluster.photo_count} visage{cluster.photo_count > 1 ? 's' : ''}
+          </div>
+        </div>
+        <button
+          onClick={onClose}
+          className="p-1.5 rounded-md hover:bg-ink-800 text-ink-400 hover:text-ink-200"
+          aria-label="Fermer"
+        >
+          <X size={14} />
+        </button>
+      </div>
+
+      {isLoading && (
+        <div className="text-xs text-ink-400 flex items-center gap-2">
+          <Loader2 size={12} className="animate-spin" /> Chargement des photos…
+        </div>
+      )}
+
+      {error && (
+        <div className="text-xs text-ink-400">
+          Impossible de charger les photos de ce cluster.
+        </div>
+      )}
+
+      {!isLoading && !error && photos && photos.length === 0 && (
+        <div className="text-xs text-ink-400">Aucune photo trouvée pour ce cluster.</div>
+      )}
+
+      {photos && photos.length > 0 && (
+        <ClusterPhotoGrid photos={photos} />
+      )}
+    </div>
+  )
+}
+
+function ClusterPhotoGrid({ photos }: { photos: ClusterPhoto[] }) {
+  return (
+    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
+      {photos.map((p) => (
+        <Link
+          key={p.photo_id}
+          href={`/photos?id=${p.photo_id}`}
+          className="ga-card ga-card-hover overflow-hidden"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={photoThumbUrl(p.media_id, 200)}
+            alt={p.filename ?? ''}
+            className="w-full h-24 object-cover"
+            loading="lazy"
+          />
+        </Link>
+      ))}
     </div>
   )
 }

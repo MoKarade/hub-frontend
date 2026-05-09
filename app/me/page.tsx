@@ -27,6 +27,7 @@ import { Sidebar } from '@/components/sidebar'
 import { Widget } from '@/components/widget'
 import { HubStatus } from '@/components/hub-status'
 import { MeChartsSection } from '@/components/me-charts'
+import { DailyBriefing } from '@/components/daily-briefing'
 import { getBaseUrl } from '@/lib/api'
 
 interface MeDashboard {
@@ -146,6 +147,8 @@ export default function MePage() {
             ))}
           </div>
         </header>
+
+        <DailyBriefing />
 
         {isLoading && !data && (
           <div className="panel p-12 text-center text-ink-400">

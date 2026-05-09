@@ -27,6 +27,7 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import { cn, formatRelative } from '@/lib/utils'
+import { toast } from '@/lib/toast'
 
 interface NewsItem {
   id: string
@@ -76,11 +77,12 @@ export default function NewsPage() {
     setSyncing(true)
     try {
       const res = await fetch('/api/v1/news/sync', { method: 'POST' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       await Promise.all([articles.mutate(), stats.mutate()])
-      alert(`Sync OK · ${data.ingested} nouveaux, ${data.updated} maj`)
+      toast.success(`Sync OK · ${data.ingested} nouveaux, ${data.updated} màj`)
     } catch (e) {
-      alert('Erreur sync : ' + (e as Error).message)
+      toast.apiError(e, 'Sync news échoué')
     } finally {
       setSyncing(false)
     }

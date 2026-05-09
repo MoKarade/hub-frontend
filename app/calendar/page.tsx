@@ -56,7 +56,7 @@ const CALENDAR_COLORS = [
   '#5b8def', // blue
   '#f0a050', // orange
   '#f06363', // red
-  '#a78bfa', // purple
+  '#94a3b8', // ink-300 neutre (remplace l'ancien violet)
   '#06b6d4', // cyan
   '#ec4899', // pink
   '#84cc16', // lime

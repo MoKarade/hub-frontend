@@ -33,6 +33,7 @@ import {
 } from '@/lib/api'
 import { toast } from '@/lib/toast'
 import { cn, formatRelative } from '@/lib/utils'
+import { EmptyState } from '@/components/empty-state'
 
 const LABEL_COLORS: Record<string, { bg: string; fg: string; label: string }> = {
   INBOX: { bg: 'bg-info/15', fg: 'text-info', label: 'Inbox' },
@@ -47,12 +48,12 @@ const LABEL_COLORS: Record<string, { bg: string; fg: string; label: string }> = 
   CATEGORY_SOCIAL: { bg: 'bg-info/15', fg: 'text-info', label: 'Social' },
   CATEGORY_PROMOTIONS: { bg: 'bg-warn/15', fg: 'text-warn', label: 'Promo' },
   CATEGORY_UPDATES: { bg: 'bg-data-negative/15', fg: 'text-data-negative', label: 'Notifications' },
-  CATEGORY_FORUMS: { bg: 'bg-purple-500/15', fg: 'text-purple-400', label: 'Forums' },
+  CATEGORY_FORUMS: { bg: 'bg-info/15', fg: 'text-info', label: 'Forums' },
 }
 
 // Couleur déterministe par sender_email pour la colonne gauche
 function senderColor(email: string): string {
-  const COLORS = ['#5cdb95', '#5b8def', '#f0a050', '#a78bfa', '#06b6d4', '#ec4899', '#f06363', '#84cc16']
+  const COLORS = ['#5cdb95', '#5b8def', '#f0a050', '#94a3b8', '#06b6d4', '#ec4899', '#f06363', '#84cc16']
   let h = 0
   for (let i = 0; i < email.length; i++) h = (h * 31 + email.charCodeAt(i)) >>> 0
   return COLORS[h % COLORS.length]
@@ -86,6 +87,7 @@ function EmailsPageInner() {
   const pathname = usePathname()
   const idParam = searchParams.get('id')
   const dateParam = searchParams.get('date')
+  const senderParam = searchParams.get('sender_email')
 
   const [search, setSearch] = useState('')
   const [senderFilter, setSenderFilter] = useState<string | null>(null)
@@ -107,6 +109,12 @@ function EmailsPageInner() {
       router.replace(pathname, { scroll: false })
     }
   }, [idParam, router, pathname])
+
+  useEffect(() => {
+    if (senderParam) {
+      setSenderFilter(senderParam)
+    }
+  }, [senderParam])
 
   const filters = useMemo(
     () => ({
@@ -397,13 +405,21 @@ function EmailsPageInner() {
             {visible.length} emails affichés
           </div>
           {visible.length === 0 ? (
-            <div className="ga-card p-6 text-center">
-              <Inbox size={24} className="text-ink-500 mx-auto mb-2" />
-              <div className="text-sm text-ink-300">Aucun email</div>
-              <p className="text-xs text-ink-500 mt-1">
-                {activeFiltersCount > 0 ? 'Aucun match avec ces filtres' : 'Click "Sync Gmail"'}
-              </p>
-            </div>
+            activeFiltersCount > 0 ? (
+              <EmptyState
+                variant="filtered-empty"
+                title="Aucun email ne match"
+                description="Tes filtres actuels n'attrapent rien."
+              />
+            ) : (
+              <EmptyState
+                variant="no-data"
+                icon={Inbox}
+                title="Aucun email importé"
+                description='Click "Sync Gmail" pour importer ta boîte de réception.'
+                action={{ label: 'Sync Gmail', onClick: handleSync }}
+              />
+            )
           ) : (
             <div className="ga-card overflow-hidden">
               <div className="divide-y divide-ink-700/30 max-h-[60vh] overflow-y-auto">

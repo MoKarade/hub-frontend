@@ -39,6 +39,9 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getBaseUrl } from '@/lib/api'
+import { EmptyState } from '@/components/empty-state'
+import { ErrorState } from '@/components/error-state'
+import { LoadingSkeleton } from '@/components/loading-skeleton'
 
 type Severity = 'critical' | 'warning' | 'info' | 'positive'
 
@@ -215,38 +218,29 @@ export default function InsightsPage() {
 
         {/* Erreur */}
         {error && (
-          <div className="ga-card p-4 mb-4 border-data-negative/40">
-            <p className="text-sm text-data-negative font-mono">
-              Erreur de chargement /v1/insights : {String(error)}
-            </p>
+          <div className="mb-4">
+            <ErrorState error={error} onRetry={() => mutate()} />
           </div>
         )}
 
         {/* Loading skeleton */}
         {isLoading && !data && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div
-                key={i}
-                className="ga-card p-4 h-32 skeleton"
-                style={{ minHeight: '120px' }}
-              />
-            ))}
+            <LoadingSkeleton variant="card" count={1} />
+            <LoadingSkeleton variant="card" count={1} />
+            <LoadingSkeleton variant="card" count={1} />
+            <LoadingSkeleton variant="card" count={1} />
           </div>
         )}
 
         {/* Empty state */}
-        {!isLoading && !error && insights.length === 0 && (
-          <div className="ga-card p-8 mb-6 text-center">
-            <CheckCircle2 size={32} className="text-data-positive mx-auto mb-3" />
-            <h3 className="text-sm font-semibold text-ink-100 mb-1">
-              Tout est sous contrôle
-            </h3>
-            <p className="text-xs text-ink-400">
-              Aucune anomalie ni pattern à signaler dans tes données. L&apos;analyse
-              tourne automatiquement chaque jour à 8h Québec.
-            </p>
-          </div>
+        {!isLoading && !error && allInsights.length === 0 && (
+          <EmptyState
+            icon={CheckCircle2}
+            title="Tout est sous contrôle"
+            description="Aucune anomalie ni pattern à signaler dans tes données. L'analyse tourne automatiquement chaque jour à 8h Québec."
+            className="mb-6"
+          />
         )}
 
         {/* Barre de filtres */}
@@ -377,9 +371,12 @@ export default function InsightsPage() {
 
         {/* Empty filtré */}
         {allInsights.length > 0 && insights.length === 0 && (
-          <div className="ga-card p-6 mb-4 text-center text-xs text-ink-400">
-            Aucun insight ne correspond aux filtres. Reset pour tout voir.
-          </div>
+          <EmptyState
+            variant="filtered-empty"
+            title="Aucun insight ne match les filtres"
+            description="Reset les filtres pour tout voir."
+            className="mb-4"
+          />
         )}
 
         {data?.generated_at && (
