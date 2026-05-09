@@ -489,7 +489,8 @@ export type ReverseGeocodeResponse = {
 
 export type ReadyResponse = {
   status: 'ok' | 'degraded'
-  checks: Record<string, { status: string; [key: string]: unknown }>
+  checks: Record<string, { status: string; latency_ms?: number; [key: string]: unknown }>
+  checked_at?: string
 }
 
 export type AskResponse = {
@@ -774,6 +775,12 @@ export type ContactItem = {
   photo_url: string | null
 }
 
+export type ContactDetail = ContactItem & {
+  addresses: string[]
+  notes: string | null
+  last_modified: string | null
+}
+
 export type ContactsSyncResponse = {
   ingested: number
   updated: number
@@ -840,6 +847,76 @@ export type YTStatsResponse = {
   total: number
   by_type: { type: string; count: number }[]
   top_channels: { channel: string; count: number }[]
+}
+
+// Browser history
+export type BrowserSyncItem = {
+  source?: string
+  external_id?: string | null
+  url: string
+  title?: string | null
+  visited_at: string
+  visit_duration_s?: number | null
+  transition?: string | null
+}
+
+export type BrowserSyncResponse = {
+  ingested: number
+  skipped_dedup: number
+  errors: number
+}
+
+export type BrowserHistoryItem = {
+  id: string
+  source: string
+  url: string
+  domain: string
+  title: string | null
+  visited_at: string
+  visit_duration_s: number | null
+  transition: string | null
+}
+
+export type BrowserStatsResponse = {
+  total_visits: number
+  unique_domains: number
+  top_domains: { domain: string; count: number }[]
+  by_hour: { hour: number; count: number }[]
+  by_day_of_week: { day: number; count: number }[]
+}
+
+export type BrowserHistoryFilters = {
+  domain?: string
+  q?: string
+  since_days?: number
+  source?: string
+  limit?: number
+  offset?: number
+}
+
+// Insights V2 (endpoint /v1/insights — agrégation multi-sources)
+// Distinct du type `Insight`/`InsightsResponse` plus haut, qui sert au sous-endpoint
+// /v1/locations/insights.
+export type InsightSeverity = 'critical' | 'warning' | 'info' | 'positive'
+
+export type InsightV2 = {
+  severity: InsightSeverity
+  icon: string
+  title: string
+  description: string
+  delta: string | null
+  action: string | null
+  action_url: string | null
+  source: string
+  metric_value: number | null
+  generated_at: string
+}
+
+export type InsightsV2Response = {
+  insights: InsightV2[]
+  generated_at: string
+  total: number
+  by_severity: Record<string, number>
 }
 
 // ============================================================================
@@ -917,6 +994,96 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ message, history }),
       }),
+  },
+
+  photosMl: {
+    status: () =>
+      request<{
+        clip_installed: boolean
+        face_recognition_installed: boolean
+        total_photos: number
+        total_embeddings: number
+        embed_remaining: number
+        total_faces: number
+        total_clusters: number
+      }>('/v1/photos/ml-status'),
+    embed: (opts: { limit?: number; model?: string } = {}) =>
+      request<{
+        embedded: number
+        skipped_no_url: number
+        errors: number
+        total_remaining: number
+        duration_seconds: number
+      }>('/v1/photos/embed', {
+        method: 'POST',
+        body: JSON.stringify({
+          limit: opts.limit ?? 100,
+          model: opts.model ?? 'ViT-B-32',
+        }),
+      }),
+    search: (q: string, opts: { top_k?: number; min_score?: number } = {}) =>
+      request<
+        {
+          photo_id: string
+          media_id: string
+          filename: string | null
+          score: number
+        }[]
+      >(
+        '/v1/photos/search' +
+          qs({ q, top_k: opts.top_k ?? 30, min_score: opts.min_score ?? 0.18 })
+      ),
+    detectFaces: (opts: { limit?: number; detection_model?: 'hog' | 'cnn' } = {}) =>
+      request<{
+        photos_processed: number
+        faces_found: number
+        errors: number
+        duration_seconds: number
+      }>('/v1/photos/detect-faces', {
+        method: 'POST',
+        body: JSON.stringify({
+          limit: opts.limit ?? 50,
+          detection_model: opts.detection_model ?? 'hog',
+        }),
+      }),
+    clusterFaces: (opts: { eps?: number; min_samples?: number } = {}) =>
+      request<{
+        total_faces: number
+        clusters_found: number
+        noise_faces: number
+        duration_seconds: number
+      }>('/v1/photos/cluster-faces' + qs({ eps: opts.eps, min_samples: opts.min_samples }), {
+        method: 'POST',
+      }),
+    listClusters: (opts: { only_named?: boolean; limit?: number } = {}) =>
+      request<
+        {
+          id: string
+          name: string | null
+          photo_count: number
+          sample_face_id: string | null
+          sample_media_id: string | null
+        }[]
+      >('/v1/photos/face-clusters' + qs(opts)),
+    renameCluster: (clusterId: string, name: string | null) =>
+      request<{
+        id: string
+        name: string | null
+        photo_count: number
+        sample_face_id: string | null
+      }>(`/v1/photos/face-clusters/${clusterId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name }),
+      }),
+    photosByFace: (clusterId: string, limit = 200) =>
+      request<
+        {
+          photo_id: string
+          media_id: string
+          filename: string | null
+          taken_at: string | null
+        }[]
+      >(`/v1/photos/by-face/${clusterId}` + qs({ limit })),
   },
 
   photos: {
@@ -1001,7 +1168,7 @@ export const api = {
     file: (driveId: string) => request<DriveFileItem>(`/v1/drive/file/${driveId}`),
     stats: () => request<DriveStatsResponse>('/v1/drive/stats'),
     wipe: () =>
-      request<{ deleted: number }>('/v1/drive/wipe?user_email=marc.richard4@gmail.com', {
+      request<{ deleted: number }>('/v1/drive/wipe', {
         method: 'DELETE',
       }),
   },
@@ -1047,6 +1214,7 @@ export const api = {
       }),
     list: (filters: { q?: string; sort?: 'name' | 'recent' | 'family'; limit?: number } = {}) =>
       request<ContactItem[]>('/v1/contacts' + qs(filters)),
+    get: (id: string) => request<ContactDetail>(`/v1/contacts/${id}`),
     stats: () => request<ContactsStatsResponse>('/v1/contacts/stats'),
   },
 
@@ -1080,7 +1248,7 @@ export const api = {
         body: JSON.stringify({ user_email: 'marc.richard4@gmail.com', ...data }),
       }),
     remove: (taskId: string) =>
-      request<{ deleted: string }>(`/v1/tasks/${taskId}?user_email=marc.richard4@gmail.com`, {
+      request<{ deleted: string }>(`/v1/tasks/${taskId}`, {
         method: 'DELETE',
       }),
   },
@@ -1294,6 +1462,80 @@ export const api = {
       }),
   },
 
+  browser: {
+    sync: (items: BrowserSyncItem[]) =>
+      request<BrowserSyncResponse>('/v1/browser/sync', {
+        method: 'POST',
+        body: JSON.stringify({ items }),
+      }),
+    history: (filters: BrowserHistoryFilters = {}) =>
+      request<BrowserHistoryItem[]>('/v1/browser/history' + qs(filters)),
+    stats: (since_days = 90) =>
+      request<BrowserStatsResponse>('/v1/browser/stats' + qs({ since_days })),
+    wipe: () =>
+      request<{ deleted: number }>('/v1/browser/wipe?confirm=true', {
+        method: 'DELETE',
+      }),
+  },
+
+  insights: {
+    list: () => request<InsightsV2Response>('/v1/insights'),
+  },
+
+  export: {
+    preview: () =>
+      request<{ tables: Record<string, number>; total_rows: number }>(
+        '/v1/export/preview'
+      ),
+    /** URL absolue pour declencher le download direct via <a href> ou window.open. */
+    downloadUrl: (opts: { include_email_bodies?: boolean } = {}) =>
+      `${getBaseUrl()}/v1/export/all?confirm=oui${
+        opts.include_email_bodies ? '&include_email_bodies=true' : ''
+      }`,
+  },
+
+  notifications: {
+    getVapidPublicKey: () =>
+      request<{ public_key: string }>('/v1/notifications/vapid-public-key'),
+    subscribe: (payload: {
+      endpoint: string
+      keys: { p256dh: string; auth: string }
+      label?: string
+    }) =>
+      request<{ id: string; endpoint: string; label: string | null; status: string }>(
+        '/v1/notifications/subscribe',
+        { method: 'POST', body: JSON.stringify(payload) }
+      ),
+    unsubscribe: (endpoint: string) =>
+      fetch(`${getBaseUrl()}/v1/notifications/unsubscribe`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', 'X-Hub-Client': 'web' },
+        body: JSON.stringify({ endpoint }),
+      }).then((r) => {
+        if (!r.ok && r.status !== 204) throw new ApiError(r.status, 'Unsubscribe failed')
+      }),
+    listSubscriptions: () =>
+      request<PushSubscriptionItem[]>('/v1/notifications/subscriptions'),
+    sendTest: (message?: string) =>
+      request<{ sent: number; failed: number; revoked: number; total_subs: number }>(
+        '/v1/notifications/send',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            title: 'Test depuis le hub',
+            body: message ?? 'Si tu vois cette notif, le Web Push marche parfaitement.',
+            url: '/',
+          }),
+        }
+      ),
+  },
+
+  me: {
+    dashboard: (period: '7d' | '30d' | '90d' | '365d' | 'all' = '30d') =>
+      request<MeDashboardResponse>(`/v1/me/dashboard?period=${period}`),
+  },
+
   oauth: {
     /** URL absolue pour rediriger le browser (pas un fetch). */
     startUrl: (service: string) =>
@@ -1354,4 +1596,81 @@ export type OAuthStatusItem = {
 export type OAuthStatusResponse = {
   tokens: OAuthStatusItem[]
   available_services: string[]
+}
+
+export type PushSubscriptionItem = {
+  id: string
+  label: string | null
+  user_agent: string | null
+  last_used_at: string | null
+  created_at: string
+  revoked_at: string | null
+}
+
+export type MeDashboardResponse = {
+  period: string
+  period_days: number | null
+  generated_at: string
+  counts: {
+    transactions: number
+    location_visits: number
+    location_unique_places: number
+    photos: number
+    emails: number
+    calendar_events: number
+    tasks_completed: number
+    tasks_pending: number
+    health_datapoints: number
+    contacts_total: number
+    drive_files_total: number
+    youtube_activities: number
+    streaming_episodes: number
+    streaming_movies: number
+    browser_visits: number
+    browser_unique_domains: number
+    steam_games_played: number
+    news_articles: number
+    privacy_requests: number
+  }
+  finance: {
+    total_spend_cad: number
+    total_credit_cad: number
+    net_cad: number
+    biggest_debit_amount: number | null
+    biggest_debit_desc: string | null
+    transactions_count: number
+  }
+  health: {
+    avg_steps: number | null
+    avg_sleep_hours: number | null
+    avg_resting_hr: number | null
+    avg_stress: number | null
+    avg_hrv: number | null
+    total_active_min: number | null
+    days_with_data: number
+  }
+  locations: {
+    visits: number
+    unique_places: number
+    home_visits: number
+    work_visits: number
+    last_home_iso: string | null
+    days_since_home: number | null
+    most_visited_place: string | null
+    most_visited_count: number
+  }
+  screen_time: {
+    browser_visits: number
+    browser_top_domains: { domain: string; count: number }[]
+    gaming_minutes: number
+    gaming_top_games: { name: string; minutes: number }[]
+    streaming_total_runtime_h: number
+  }
+  productivity: {
+    tasks_completed: number
+    tasks_pending: number
+    tasks_overdue: number
+    completion_rate_pct: number | null
+    calendar_events: number
+  }
 }
